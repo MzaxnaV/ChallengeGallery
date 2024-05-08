@@ -34,11 +34,16 @@ pub fn build(b: *std.Build) !void {
     //     return;
     // }
 
+    const utils = b.createModule(.{
+        .root_source_file = b.path("./src/utils.zig"),
+    });
+
     const exe = b.addExecutable(.{ .name = "ChallengeGallery", .root_source_file = .{ .path = "src/main.zig" }, .optimize = optimize, .target = target });
 
     exe.linkLibrary(raylib_artifact);
     exe.root_module.addImport("raylib", raylib);
     exe.root_module.addImport("raylib-math", raylib_math);
+    exe.root_module.addImport("utils", utils);
 
     const run_cmd = b.addRunArtifact(exe);
     const run_step = b.step("run", "Run ChallengeGallery");
