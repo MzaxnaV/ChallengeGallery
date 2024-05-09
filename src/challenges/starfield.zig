@@ -54,7 +54,7 @@ pub fn run(comptime width: comptime_int, comptime height: comptime_int, comptime
     rl.initWindow(width, height, "Starfield");
     defer rl.closeWindow(); // Close window and OpenGL context
 
-    rl.setTargetFPS(60); // Set our game to run at 60 frames-per-second
+    rl.setTargetFPS(60);
 
     for (stars[0..]) |*s| {
         s.p.x = utils.randomFloat(-width, width);
@@ -77,7 +77,7 @@ pub fn run(comptime width: comptime_int, comptime height: comptime_int, comptime
 
         const mouse = rl.getMousePosition();
 
-        const speed = utils.map(mouse.x, 0, width, 0, 50);
+        const speed = utils.map(mouse.x, 0, width, 0, config.speed_max);
 
         const formatted_text = try bufPrint(text_buffer[0..], "Speed: {d:.2}", .{speed});
         text_buffer[formatted_text.len] = 0; // Set sentinel value

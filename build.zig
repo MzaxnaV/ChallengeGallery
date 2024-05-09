@@ -12,6 +12,7 @@ pub fn build(b: *std.Build) !void {
 
     const raylib = raylib_dep.module("raylib");
     const raylib_math = raylib_dep.module("raylib-math");
+    const rlgl = raylib_dep.module("rlgl");
     const raylib_artifact = raylib_dep.artifact("raylib");
 
     // NOTE: Not interested in web exports atm
@@ -43,7 +44,9 @@ pub fn build(b: *std.Build) !void {
     exe.linkLibrary(raylib_artifact);
     exe.root_module.addImport("raylib", raylib);
     exe.root_module.addImport("raylib-math", raylib_math);
+    exe.root_module.addImport("rlgl", rlgl);
     exe.root_module.addImport("utils", utils);
+    exe.addIncludePath(.{ .path = "external" });
 
     const run_cmd = b.addRunArtifact(exe);
     const run_step = b.step("run", "Run ChallengeGallery");

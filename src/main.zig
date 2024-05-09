@@ -6,9 +6,13 @@ pub fn main() anyerror!void {
     const screenWidth = 800;
     const screenHeight = 800;
 
-    const starfield = @import("challenges/starfield.zig");
+    // const starfield = @import("challenges/starfield.zig");
+    const menger_sponge = @import("challenges/menger_sponge.zig");
 
-    const config = .{ .stars = 100 };
+    const config = .{
+        .stars = 100,
+        .speed_max = 50,
+    };
 
-    return starfield.run(screenWidth, screenHeight, @TypeOf(config), config);
+    return menger_sponge.run(screenWidth, screenHeight, @TypeOf(config), config);
 }
