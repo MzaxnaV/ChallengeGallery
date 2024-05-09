@@ -8,7 +8,7 @@ pub fn main() anyerror!void {
 
     const starfield = @import("challenges/starfield.zig");
 
-    const config = .{ .stars = 800 };
+    const config = .{ .stars = 100 };
 
     return starfield.run(screenWidth, screenHeight, @TypeOf(config), config);
 }
