@@ -24,11 +24,12 @@ const star = struct {
         }
     }
 
-    fn draw(self: @This(), cameraX: f32, cameraY: f32, fov: f32, comptime width: comptime_int, comptime height: comptime_int) void {
+    fn draw(self: @This(), cameraX: f32, cameraY: f32, cameraZ: f32, fov: f32, comptime width: comptime_int, comptime height: comptime_int) void {
         const relativeX = self.x - cameraX;
         const relativeY = self.y - cameraY;
+        const relativeZ = self.z - cameraZ;
 
-        const scaleFactor = fov / (fov + self.z);
+        const scaleFactor = fov / (fov + relativeZ);
 
         // const sx: i32 = @intFromFloat(utils.map((self.x - width / 2) / self.z, 0, 1, 0, width) + width / 2);
         // const sy: i32 = @intFromFloat(utils.map((self.y - height / 2) / self.z, 0, 1, 0, height) + height / 2);
@@ -36,7 +37,8 @@ const star = struct {
         const sx: i32 = @intFromFloat(width / 2 + relativeX * scaleFactor);
         const sy: i32 = @intFromFloat(height / 2 + relativeY * scaleFactor);
 
-        const scaleFactorP = fov / (fov + self.pz);
+        const relativePZ = self.pz - cameraZ;
+        const scaleFactorP = fov / (fov + relativePZ);
 
         // const px: i32 = @intFromFloat(utils.map((self.x - width / 2) / self.pz, 0, 1, 0, width) + width / 2);
         // const py: i32 = @intFromFloat(utils.map((self.y - height / 2) / self.pz, 0, 1, 0, height) + height / 2);
@@ -102,9 +104,10 @@ pub fn run(comptime width: comptime_int, comptime height: comptime_int, comptime
             // Simulate camera at position (0, 0, 0) with a field of view of 100
             const cameraX: f32 = 0;
             const cameraY: f32 = 0;
+            const cameraZ: f32 = 0;
             const fov: f32 = 120;
 
-            s.draw(cameraX, cameraY, fov, width, height);
+            s.draw(cameraX, cameraY, cameraZ, fov, width, height);
         }
 
         //----------------------------------------------------------------------------------
