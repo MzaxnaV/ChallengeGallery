@@ -16,6 +16,9 @@ pub fn build(b: *std.Build) !void {
     const raylib_artifact = raylib_dep.artifact("raylib");
 
     const raygui_dep = b.dependency("raygui", .{});
+    var raygui_step = b.addWriteFiles();
+    // need a c file https://github.com/ziglang/zig/issues/19423
+    const raygui_c = raygui_step.add("raygui.c", "#define RAYGUI_IMPLEMENTATION\n#include \"raygui.h\"\n");
 
     // NOTE: Not interested in web exports atm
     //web exports are completely separate
@@ -48,9 +51,8 @@ pub fn build(b: *std.Build) !void {
     exe.root_module.addImport("raylib-math", raylib_math);
     exe.root_module.addImport("rlgl", rlgl);
     exe.root_module.addImport("utils", utils);
-    exe.addCSourceFile(.{ .file = raygui_dep.path("raygui.c") });
-    exe.addIncludePath(raygui_dep.path(""));
-    exe.addIncludePath(.{ .path = "libs" });
+    exe.addCSourceFile(.{ .file = raygui_c });
+    exe.addIncludePath(raygui_dep.path("src"));
 
     const run_cmd = b.addRunArtifact(exe);
     const run_step = b.step("run", "Run ChallengeGallery");
