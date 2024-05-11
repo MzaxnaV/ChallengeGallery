@@ -15,6 +15,8 @@ pub fn build(b: *std.Build) !void {
     const rlgl = raylib_dep.module("rlgl");
     const raylib_artifact = raylib_dep.artifact("raylib");
 
+    const raygui_dep = b.dependency("raygui", .{});
+
     // NOTE: Not interested in web exports atm
     //web exports are completely separate
     // if (target.query.os_tag == .emscripten) {
@@ -46,7 +48,9 @@ pub fn build(b: *std.Build) !void {
     exe.root_module.addImport("raylib-math", raylib_math);
     exe.root_module.addImport("rlgl", rlgl);
     exe.root_module.addImport("utils", utils);
-    exe.addIncludePath(.{ .path = "external" });
+    exe.addCSourceFile(.{ .file = raygui_dep.path("raygui.c") });
+    exe.addIncludePath(raygui_dep.path(""));
+    exe.addIncludePath(.{ .path = "libs" });
 
     const run_cmd = b.addRunArtifact(exe);
     const run_step = b.step("run", "Run ChallengeGallery");
