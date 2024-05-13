@@ -186,7 +186,7 @@ fn updateLightValues(shader: rl.Shader, light: Light) void {
 
 pub fn setup(comptime _: comptime_int, comptime _: comptime_int, config: anytype) anyerror!void {
     g.sponge = Sponge{};
-    try g.sponge.generate(config.allocator, 2);
+    try g.sponge.generate(config.allocator, config.depth);
 
     g.camera = rl.Camera3D{
         .position = rl.Vector3.init(2, 2, 3),

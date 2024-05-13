@@ -12,6 +12,19 @@ const raygui_draw_ring = @import("raygui_draw_ring.zig");
 const starfield = @import("challenges/starfield.zig");
 const menger_sponge = @import("challenges/menger_sponge.zig");
 
+fn App(comptime app: type) type {
+    const SetupFn = *const fn (comptime width: comptime_int, comptime height: comptime_int, config: anytype) anyerror!void;
+    const EmptyFn = *const fn () void;
+
+    return struct {
+        const setup: SetupFn = app.setup;
+        const update: EmptyFn = app.update;
+        const render: EmptyFn = app.render;
+        const cleanup: EmptyFn = app.cleanup;
+        const title: [:0]const u8 = app.title;
+    };
+}
+
 pub fn main() anyerror!void {
     if (DEBUG) {
         return raygui_draw_ring.run(800, 500);
@@ -27,24 +40,16 @@ pub fn main() anyerror!void {
 
     const config = .{
         .allocator = arena.allocator(),
+
+        // starfield
         .stars = 100,
         .speed_max = 50,
+
+        // menger_sponge
+        .depth = 2,
     };
 
-    const app: struct {
-        setup: *const fn (comptime width: comptime_int, comptime height: comptime_int, config: @TypeOf(config)) anyerror!void,
-        update: *const fn () void,
-        render: *const fn () void,
-        cleanup: *const fn () void,
-        title: [:0]const u8,
-    } = .{
-        // Select the app
-        .setup = menger_sponge.setup,
-        .update = menger_sponge.update,
-        .render = menger_sponge.render,
-        .cleanup = menger_sponge.cleanup,
-        .title = menger_sponge.title,
-    };
+    const app = App(menger_sponge);
 
     rl.initWindow(screenWidth, screenHeight, app.title);
     defer rl.closeWindow(); // Close window and OpenGL context
