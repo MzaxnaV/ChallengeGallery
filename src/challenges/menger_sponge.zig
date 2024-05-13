@@ -7,34 +7,45 @@ const rl = struct {
 const utils = @import("utils");
 const std = @import("std");
 
-/// Max dynamic lights supported by shader
-pub const MAX_LIGHTS = 4;
+//----------------------------------------------------------------------------------
+// Consts
+//----------------------------------------------------------------------------------
 
-pub var lightsCount: u32 = 0;
+pub const title = "Menger-Sponge";
+
+/// Max dynamic lights supported by shader
+const MAX_LIGHTS = 4;
+
+const loc_vector_view = @intFromEnum(rl.ShaderLocationIndex.shader_loc_vector_view);
+
+const uniform_int = @intFromEnum(rl.ShaderUniformDataType.shader_uniform_int);
+const uniform_vec3 = @intFromEnum(rl.ShaderUniformDataType.shader_uniform_vec3);
+const uniform_vec4 = @intFromEnum(rl.ShaderUniformDataType.shader_uniform_vec4);
+const uniform_ivec4 = @intFromEnum(rl.ShaderUniformDataType.shader_uniform_ivec4);
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 
-const box = struct {
+const Sponge = struct {
     p: rl.Vector3 = rl.Vector3.init(0, 0, 0),
     size: f32 = 1,
     depth: u32 = 0,
-    subdivBox: ?[]box = null,
+    subdivBoxes: ?[]Sponge = null,
 
     fn draw(self: @This()) void {
         if (self.depth == 0) {
             rl.drawCube(self.p, self.size, self.size, self.size, rl.Color.white);
         }
 
-        if (self.subdivBox) |boxes| {
+        if (self.subdivBoxes) |boxes| {
             for (boxes) |b| {
                 b.draw();
             }
         }
     }
 
-    fn generate(self: *box, allocator: std.mem.Allocator, comptime depth: comptime_int) anyerror!void {
+    fn generate(self: *Sponge, allocator: std.mem.Allocator, comptime depth: comptime_int) anyerror!void {
         comptime {
             if (depth > 4) {
                 @compileError("Depth should be less than 4");
@@ -43,7 +54,7 @@ const box = struct {
 
         self.depth = depth;
         if (depth > 0) {
-            self.subdivBox = try allocator.alloc(box, 27);
+            self.subdivBoxes = try allocator.alloc(Sponge, 27);
 
             var index: u32 = 0;
             var x: f32 = 0;
@@ -53,17 +64,17 @@ const box = struct {
                     var z: f32 = 0;
                     while (z < 3) : (z += 1) {
                         const newSize = self.size / 3;
-                        self.subdivBox.?[index].p = rl.Vector3.init(
+                        self.subdivBoxes.?[index].p = rl.Vector3.init(
                             self.p.x + (x - 1) * newSize,
                             self.p.y + (y - 1) * newSize,
                             self.p.z + (z - 1) * newSize,
                         );
-                        self.subdivBox.?[index].size = newSize;
-                        self.subdivBox.?[index].depth = depth;
+                        self.subdivBoxes.?[index].size = newSize;
+                        self.subdivBoxes.?[index].depth = depth;
                         if (@abs(x - 1) + @abs(y - 1) + @abs(z - 1) > 1) {
-                            try self.subdivBox.?[index].generate(allocator, depth - 1);
+                            try self.subdivBoxes.?[index].generate(allocator, depth - 1);
                         } else {
-                            self.subdivBox.?[index].subdivBox = null;
+                            self.subdivBoxes.?[index].subdivBoxes = null;
                         }
 
                         index += 1;
@@ -71,13 +82,19 @@ const box = struct {
                 }
             }
         } else {
-            self.subdivBox = null;
+            self.subdivBoxes = null;
         }
     }
 };
 
+/// Light type
+const LightType = enum(c_int) {
+    LIGHT_DIRECTIONAL = 0,
+    LIGHT_POINT,
+};
+
 /// Light data
-pub const Light = extern struct {
+const Light = extern struct {
     enabled: bool,
     type: LightType,
     position: [3]f32,
@@ -94,17 +111,27 @@ pub const Light = extern struct {
     attenuationLoc: c_int,
 };
 
-/// Light type
-pub const LightType = enum(c_int) {
-    LIGHT_DIRECTIONAL = 0,
-    LIGHT_POINT,
-};
+//----------------------------------------------------------------------------------
+// Globals
+//----------------------------------------------------------------------------------
+
+var g: struct {
+    camera: rl.Camera3D = undefined,
+    sponge: Sponge = undefined,
+    shader: rl.Shader = undefined,
+    lightsCount: u32 = 0,
+    lights: [MAX_LIGHTS]Light = undefined,
+} = .{};
+
+// ---------------------------------------------------------------------------------
+// local functions
+//----------------------------------------------------------------------------------
 
 /// Create a light and get shader locations
-pub fn CreateLight(lightType: LightType, position: rl.Vector3, target: rl.Vector3, color: rl.Color, shader: rl.Shader) ?Light {
+fn createLight(lightType: LightType, position: rl.Vector3, target: rl.Vector3, color: rl.Color, shader: rl.Shader) ?Light {
     var light: ?Light = undefined;
 
-    if (lightsCount < MAX_LIGHTS) {
+    if (g.lightsCount < MAX_LIGHTS) {
         light = Light{
             .enabled = true,
             .type = lightType,
@@ -119,17 +146,17 @@ pub fn CreateLight(lightType: LightType, position: rl.Vector3, target: rl.Vector
             .attenuation = 0,
 
             // NOTE: Lighting shader naming must be the provided ones
-            .enabledLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].enabled", .{lightsCount})),
-            .typeLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].type", .{lightsCount})),
-            .positionLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].position", .{lightsCount})),
-            .targetLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].target", .{lightsCount})),
-            .colorLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].color", .{lightsCount})),
+            .enabledLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].enabled", .{g.lightsCount})),
+            .typeLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].type", .{g.lightsCount})),
+            .positionLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].position", .{g.lightsCount})),
+            .targetLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].target", .{g.lightsCount})),
+            .colorLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].color", .{g.lightsCount})),
             .attenuationLoc = 0,
         };
 
-        UpdateLightValues(shader, light.?);
+        updateLightValues(shader, light.?);
 
-        lightsCount += 1;
+        g.lightsCount += 1;
     }
 
     return light;
@@ -137,37 +164,31 @@ pub fn CreateLight(lightType: LightType, position: rl.Vector3, target: rl.Vector
 
 /// Send light properties to shader.
 /// NOTE: Light shader locations should be available
-pub fn UpdateLightValues(shader: rl.Shader, light: Light) void {
+fn updateLightValues(shader: rl.Shader, light: Light) void {
 
     // Send to shader light enabled state and type
-    rl.setShaderValue(shader, light.enabledLoc, &light.enabled, @intFromEnum(rl.ShaderUniformDataType.shader_uniform_int));
-    rl.setShaderValue(shader, light.typeLoc, &light.type, @intFromEnum(rl.ShaderUniformDataType.shader_uniform_int));
+    rl.setShaderValue(shader, light.enabledLoc, &light.enabled, uniform_int);
+    rl.setShaderValue(shader, light.typeLoc, &light.type, uniform_int);
 
     // Send to shader light position values
-    rl.setShaderValue(shader, light.positionLoc, &light.position, @intFromEnum(rl.ShaderUniformDataType.shader_uniform_vec3));
+    rl.setShaderValue(shader, light.positionLoc, &light.position, uniform_vec3);
 
     // Send to shader light target position values
-    rl.setShaderValue(shader, light.targetLoc, &light.target, @intFromEnum(rl.ShaderUniformDataType.shader_uniform_vec3));
+    rl.setShaderValue(shader, light.targetLoc, &light.target, uniform_vec3);
 
     // Send to shader light color values
-    rl.setShaderValue(shader, light.colorLoc, &light.color, @intFromEnum(rl.ShaderUniformDataType.shader_uniform_vec4));
+    rl.setShaderValue(shader, light.colorLoc, &light.color, uniform_vec4);
 }
 
-pub fn run(comptime width: comptime_int, comptime height: comptime_int, comptime T: type, comptime _: T) anyerror!void {
-    var object = box{};
+// ---------------------------------------------------------------------------------
+// App api functions
+//----------------------------------------------------------------------------------
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+pub fn setup(comptime _: comptime_int, comptime _: comptime_int, config: anytype) anyerror!void {
+    g.sponge = Sponge{};
+    try g.sponge.generate(config.allocator, 2);
 
-    try object.generate(allocator, 2);
-
-    rl.initWindow(width, height, "Menger-Sponge");
-    defer rl.closeWindow(); // Close window and OpenGL context
-
-    rl.setTargetFPS(60);
-
-    var camera = rl.Camera3D{
+    g.camera = rl.Camera3D{
         .position = rl.Vector3.init(2, 2, 3),
         .target = rl.Vector3.init(0, 0, 0),
         .up = rl.Vector3.init(0, 1, 0),
@@ -175,50 +196,37 @@ pub fn run(comptime width: comptime_int, comptime height: comptime_int, comptime
         .projection = rl.CameraProjection.camera_perspective,
     };
 
-    const shader: rl.Shader = rl.loadShader("assets/shaders/lighting.vs", "assets/shaders/lighting.fs");
-    shader.locs[@intFromEnum(rl.ShaderLocationIndex.shader_loc_vector_view)] = rl.getShaderLocation(shader, "viewPos");
+    g.shader = rl.loadShader("assets/shaders/lighting.vs", "assets/shaders/lighting.fs");
+    g.shader.locs[loc_vector_view] = rl.getShaderLocation(g.shader, "viewPos");
 
-    const ambientloc = rl.getShaderLocation(shader, "ambient");
-    rl.setShaderValue(shader, ambientloc, &rl.Vector4.init(0.1, 0.1, 0.1, 1), @intFromEnum(rl.ShaderUniformDataType.shader_uniform_ivec4));
+    const ambientloc = rl.getShaderLocation(g.shader, "ambient");
+    rl.setShaderValue(g.shader, ambientloc, &rl.Vector4.init(0.1, 0.1, 0.1, 1), uniform_ivec4);
 
-    var lights: [MAX_LIGHTS]Light = undefined;
+    g.lights = .{
+        createLight(.LIGHT_POINT, rl.Vector3.init(-2, 1, -2), rl.vector3Zero(), rl.Color.yellow, g.shader).?,
+        createLight(.LIGHT_POINT, rl.Vector3.init(2, 1, 2), rl.vector3Zero(), rl.Color.red, g.shader).?,
+        createLight(.LIGHT_POINT, rl.Vector3.init(-2, 1, 2), rl.vector3Zero(), rl.Color.green, g.shader).?,
+        createLight(.LIGHT_POINT, rl.Vector3.init(2, 1, -2), rl.vector3Zero(), rl.Color.blue, g.shader).?,
+    };
+}
 
-    lights[0] = CreateLight(.LIGHT_POINT, rl.Vector3.init(-2, 1, -2), rl.vector3Zero(), rl.Color.yellow, shader).?;
-    lights[1] = CreateLight(.LIGHT_POINT, rl.Vector3.init(2, 1, 2), rl.vector3Zero(), rl.Color.red, shader).?;
-    lights[2] = CreateLight(.LIGHT_POINT, rl.Vector3.init(-2, 1, 2), rl.vector3Zero(), rl.Color.green, shader).?;
-    lights[3] = CreateLight(.LIGHT_POINT, rl.Vector3.init(2, 1, -2), rl.vector3Zero(), rl.Color.blue, shader).?;
+pub fn update() void {
+    rl.updateCamera(&g.camera, rl.CameraMode.camera_orbital);
+}
 
-    //--------------------------------------------------------------------------------------
+pub fn cleanup() void {
+    rl.unloadShader(g.shader);
+}
 
-    // Main game loop
-    while (!rl.windowShouldClose()) { // Detect window close button or ESC key
-        // Update
-        //----------------------------------------------------------------------------------
+/// called between `rl.beginDrawing()` and `rl.endDrawing()`
+pub fn render() void {
+    rl.beginMode3D(g.camera);
+    defer rl.endMode3D();
 
-        rl.updateCamera(&camera, rl.CameraMode.camera_orbital);
+    {
+        rl.beginShaderMode(g.shader);
+        defer rl.endShaderMode();
 
-        //----------------------------------------------------------------------------------
-
-        // Draw
-        //----------------------------------------------------------------------------------
-
-        rl.beginDrawing();
-        defer rl.endDrawing();
-
-        rl.clearBackground(rl.Color.gray);
-
-        {
-            rl.beginMode3D(camera);
-            defer rl.endMode3D();
-
-            {
-                rl.beginShaderMode(shader);
-                defer rl.endShaderMode();
-
-                object.draw();
-            }
-        }
-
-        //----------------------------------------------------------------------------------
+        g.sponge.draw();
     }
 }

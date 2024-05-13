@@ -4,18 +4,27 @@ const rl = struct {
 };
 
 const utils = @import("utils");
-const bufPrint = @import("std").fmt.bufPrint;
 
-const camera = struct {
+//----------------------------------------------------------------------------------
+// Consts
+//----------------------------------------------------------------------------------
+
+pub const title = "Startfield";
+
+//----------------------------------------------------------------------------------
+// Types and Structures Definition
+//----------------------------------------------------------------------------------
+
+const Camera = struct {
     p: rl.Vector3 = rl.Vector3.init(0, 0, 0),
     fov: f32,
 };
 
-const star = struct {
+const Star = struct {
     p: rl.Vector3 = rl.Vector3.init(0, 0, 0),
     pz: f32 = 0,
 
-    fn update(self: *star, speed: f32, comptime width: comptime_int, comptime height: comptime_int) void {
+    fn update(self: *Star, speed: f32, width: f32, height: f32) void {
         self.pz = self.p.z;
         self.p.z -= speed;
         if (self.p.z <= 1) {
@@ -27,16 +36,16 @@ const star = struct {
         }
     }
 
-    fn draw(self: @This(), cam: camera, comptime width: comptime_int, comptime height: comptime_int) void {
-        const relative = rl.vector3Subtract(self.p, cam.p);
+    fn draw(self: @This(), camera: Camera, width: f32, height: f32) void {
+        const relative = rl.vector3Subtract(self.p, camera.p);
 
-        const scaleFactor = cam.fov / (cam.fov + relative.z);
+        const scaleFactor = camera.fov / (camera.fov + relative.z);
 
         const sx: i32 = @intFromFloat(width / 2 + relative.x * scaleFactor);
         const sy: i32 = @intFromFloat(height / 2 + relative.y * scaleFactor);
 
-        const relativePZ = self.pz - cam.p.z;
-        const scaleFactorP = cam.fov / (cam.fov + relativePZ);
+        const relativePZ = self.pz - camera.p.z;
+        const scaleFactorP = camera.fov / (camera.fov + relativePZ);
 
         const pSX: i32 = @intFromFloat(width / 2 + relative.x * scaleFactorP);
         const pSY: i32 = @intFromFloat(height / 2 + relative.y * scaleFactorP);
@@ -48,60 +57,54 @@ const star = struct {
     }
 };
 
-pub fn run(comptime width: comptime_int, comptime height: comptime_int, comptime T: type, comptime config: T) anyerror!void {
-    var stars: [config.stars]star = [1]star{star{}} ** config.stars;
+//----------------------------------------------------------------------------------
+// Globals
+//----------------------------------------------------------------------------------
 
-    rl.initWindow(width, height, "Starfield");
-    defer rl.closeWindow(); // Close window and OpenGL context
+var g: struct {
+    stars: []Star = undefined,
+    camera: Camera = undefined,
+    width: f32 = 0,
+    height: f32 = 0,
+    speedMax: f32 = 0,
+    speed: f32 = 0,
+} = .{};
 
-    rl.setTargetFPS(60);
+// ---------------------------------------------------------------------------------
+// App api functions
+//----------------------------------------------------------------------------------
 
-    for (stars[0..]) |*s| {
+pub fn setup(comptime width: comptime_int, comptime height: comptime_int, config: anytype) anyerror!void {
+    g.stars = try config.allocator.alloc(Star, config.stars);
+    g.camera = .{ .fov = 120 };
+    g.width = width;
+    g.speedMax = config.speed_max;
+
+    for (g.stars) |*s| {
         s.p.x = utils.randomFloat(-width, width);
         s.p.y = utils.randomFloat(-height, height);
         s.p.z = utils.randomFloat(1, width);
 
         s.pz = s.p.z;
     }
+}
 
-    var text_buffer: [100]u8 = [1]u8{0} ** 100;
+pub fn update() void {
+    const mouse = rl.getMousePosition();
 
-    const cam: camera = .{ .fov = 120 };
+    g.speed = utils.map(mouse.x, 0, g.width, 0, g.speedMax);
 
-    //--------------------------------------------------------------------------------------
-
-    // Main game loop
-    while (!rl.windowShouldClose()) { // Detect window close button or ESC key
-        // Update
-        //----------------------------------------------------------------------------------
-
-        const mouse = rl.getMousePosition();
-
-        const speed = utils.map(mouse.x, 0, width, 0, config.speed_max);
-
-        const formatted_text = try bufPrint(text_buffer[0..], "Speed: {d:.2}", .{speed});
-        text_buffer[formatted_text.len] = 0; // Set sentinel value
-
-        for (stars[0..]) |*s| {
-            s.update(speed, width, height);
-        }
-
-        //----------------------------------------------------------------------------------
-
-        // Draw
-        //----------------------------------------------------------------------------------
-
-        rl.beginDrawing();
-        defer rl.endDrawing();
-
-        rl.clearBackground(rl.Color.black);
-
-        rl.drawText(text_buffer[0..formatted_text.len :0], 20, 20, 20, rl.Color.gold);
-
-        for (stars) |s| {
-            s.draw(cam, width, height);
-        }
-
-        //----------------------------------------------------------------------------------
+    for (g.stars) |*s| {
+        s.update(g.speed, g.width, g.height);
     }
 }
+
+pub fn render() void {
+    rl.drawText(rl.textFormat("Speed: %d.02", .{g.speed}), 20, 20, 20, rl.Color.gold);
+
+    for (g.stars) |s| {
+        s.draw(g.camera, g.width, g.height);
+    }
+}
+
+pub fn cleanup() void {}

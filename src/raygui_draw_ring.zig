@@ -10,7 +10,7 @@ const ray = struct {
     });
 };
 
-pub fn run(comptime width: comptime_int, comptime height: comptime_int, comptime T: type, comptime _: T) anyerror!void {
+pub fn run(comptime width: comptime_int, comptime height: comptime_int) anyerror!void {
     rl.initWindow(width, height, "RayGui");
     defer rl.closeWindow(); // Close window and OpenGL context
 
