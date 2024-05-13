@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const rl = struct {
     usingnamespace @import("raylib");
     usingnamespace @import("raylib-math");
@@ -5,13 +7,15 @@ const rl = struct {
 };
 
 const utils = @import("utils");
-const std = @import("std");
 
 //----------------------------------------------------------------------------------
 // Consts
 //----------------------------------------------------------------------------------
 
-pub const title = "Menger-Sponge";
+pub const config = .{
+    .title = "Menger-Sponge",
+    .depth = 2,
+};
 
 /// Max dynamic lights supported by shader
 const MAX_LIGHTS = 4;
@@ -184,9 +188,9 @@ fn updateLightValues(shader: rl.Shader, light: Light) void {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(comptime _: comptime_int, comptime _: comptime_int, config: anytype) anyerror!void {
+pub fn setup(allocator: std.mem.Allocator, comptime _: comptime_int, comptime _: comptime_int) anyerror!void {
     g.sponge = Sponge{};
-    try g.sponge.generate(config.allocator, config.depth);
+    try g.sponge.generate(allocator, config.depth);
 
     g.camera = rl.Camera3D{
         .position = rl.Vector3.init(2, 2, 3),
@@ -218,7 +222,6 @@ pub fn cleanup() void {
     rl.unloadShader(g.shader);
 }
 
-/// called between `rl.beginDrawing()` and `rl.endDrawing()`
 pub fn render() void {
     rl.beginMode3D(g.camera);
     defer rl.endMode3D();
