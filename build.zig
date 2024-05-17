@@ -42,9 +42,20 @@ pub fn build(b: *std.Build) !void {
 
     const utils = b.createModule(.{
         .root_source_file = b.path("./src/utils.zig"),
+        .target = target,
+        .optimize = .ReleaseSafe,
+        .imports = &.{
+            std.Build.Module.Import{ .name = "raylib", .module = raylib },
+            std.Build.Module.Import{ .name = "raylib-math", .module = raylib_math },
+        },
     });
 
-    const exe = b.addExecutable(.{ .name = "ChallengeGallery", .root_source_file = .{ .path = "src/main.zig" }, .optimize = optimize, .target = target });
+    const exe = b.addExecutable(.{
+        .name = "ChallengeGallery",
+        .root_source_file = .{ .path = "src/main.zig" },
+        .optimize = optimize,
+        .target = target,
+    });
 
     exe.linkLibrary(raylib_artifact);
     exe.root_module.addImport("raylib", raylib);

@@ -26,14 +26,14 @@ const AppType = enum {
 fn App(comptime tag: AppType) type {
     const app = tag.getType();
 
-    const SetupFn = *const fn (allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!void;
+    const SetupFn = *const fn (allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*rl.RenderTexture2D;
     const EmptyFn = *const fn () void;
     const String = [:0]const u8;
 
     return struct {
         const setup: SetupFn = app.setup;
         const update: EmptyFn = app.update;
-        /// called between `rl.beginDrawing()` and `rl.endDrawing()`
+        /// draws to a render texture
         const render: EmptyFn = app.render;
         const cleanup: EmptyFn = app.cleanup;
         const title: String = app.config.title;
@@ -51,17 +51,20 @@ pub fn main() anyerror!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const screenWidth = 800;
-    const screenHeight = 800;
+    const screenWidth = 900;
+    const screenHeight = 620;
 
-    const app = App(.menger_sponge);
+    const viewWidth = 600;
+    const viewHeight = 600;
+
+    const app = App(.snake);
 
     rl.initWindow(screenWidth, screenHeight, app.title);
     defer rl.closeWindow(); // Close window and OpenGL context
 
     rl.setTargetFPS(60);
 
-    try app.setup(arena.allocator(), screenWidth, screenHeight);
+    const render_texture = try app.setup(arena.allocator(), viewWidth, viewHeight);
     defer app.cleanup();
 
     // Main game loop
@@ -71,12 +74,27 @@ pub fn main() anyerror!void {
         app.update();
 
         {
+            render_texture.begin();
+            defer render_texture.end();
+            app.render();
+        }
+
+        {
             rl.beginDrawing();
             defer rl.endDrawing();
 
-            rl.clearBackground(rl.Color.black);
+            rl.clearBackground(rl.Color.ray_white);
 
-            app.render();
+            rl.drawRectangleLines(5, 5, viewHeight + 10, viewHeight + 10, rl.Color.gray);
+
+            rl.drawTextureRec(render_texture.texture, .{
+                .x = 0,
+                .y = 0,
+                .width = viewWidth,
+                .height = -viewHeight,
+            }, .{ .x = 10, .y = 10 }, rl.Color.white);
+
+            rl.drawFPS(20, 20);
         }
     }
 }

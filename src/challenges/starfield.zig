@@ -60,7 +60,7 @@ const Star = struct {
     }
 
     fn draw(self: @This(), camera: Camera) void {
-        const radius = utils.map(self.p.z, 1, camera.viewport.x, 16, 0);
+        const radius = rl.remap(self.p.z, 1, camera.viewport.x, 16, 0);
 
         const screenP = camera.worldToScreen(self.p);
         rl.drawCircle(
@@ -86,6 +86,7 @@ const Star = struct {
 //----------------------------------------------------------------------------------
 
 var g: struct {
+    render_texture: rl.RenderTexture2D = undefined,
     stars: []Star = undefined,
     camera: Camera = undefined,
     speedMax: f32 = 0,
@@ -96,7 +97,9 @@ var g: struct {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!void {
+pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*rl.RenderTexture2D {
+    g.render_texture = rl.loadRenderTexture(width, height);
+
     g.stars = try allocator.alloc(Star, config.stars);
     g.camera = .{ .fov = 120, .viewport = rl.Vector2.init(width, height) };
     g.speedMax = config.speed_max;
@@ -108,12 +111,14 @@ pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptim
 
         s.pz = s.p.z;
     }
+
+    return &g.render_texture;
 }
 
 pub fn update() void {
     const mouse = rl.getMousePosition();
 
-    g.speed = utils.map(mouse.x, 0, g.camera.viewport.x, 0, g.speedMax);
+    g.speed = rl.remap(mouse.x, 0, g.camera.viewport.x, 0, g.speedMax);
 
     for (g.stars) |*s| {
         s.update(g.speed, g.camera.viewport);
@@ -121,7 +126,9 @@ pub fn update() void {
 }
 
 pub fn render() void {
-    rl.drawText(rl.textFormat("Speed: %.02f", .{g.speed}), 20, 20, 20, rl.Color.gold);
+    rl.clearBackground(rl.Color.black);
+
+    rl.drawText(rl.textFormat("Speed: %.02f", .{g.speed}), 10, 40, 20, rl.Color.gold);
 
     for (g.stars) |s| {
         s.draw(g.camera);

@@ -120,6 +120,7 @@ const Light = extern struct {
 //----------------------------------------------------------------------------------
 
 var g: struct {
+    render_texture: rl.RenderTexture2D = undefined,
     camera: rl.Camera3D = undefined,
     sponge: Sponge = undefined,
     shader: rl.Shader = undefined,
@@ -188,7 +189,9 @@ fn updateLightValues(shader: rl.Shader, light: Light) void {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, comptime _: comptime_int, comptime _: comptime_int) anyerror!void {
+pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*rl.RenderTexture2D {
+    g.render_texture = rl.loadRenderTexture(width, height);
+
     g.sponge = Sponge{};
     try g.sponge.generate(allocator, config.depth);
 
@@ -212,6 +215,8 @@ pub fn setup(allocator: std.mem.Allocator, comptime _: comptime_int, comptime _:
         createLight(.LIGHT_POINT, rl.Vector3.init(-2, 1, 2), rl.vector3Zero(), rl.Color.green, g.shader).?,
         createLight(.LIGHT_POINT, rl.Vector3.init(2, 1, -2), rl.vector3Zero(), rl.Color.blue, g.shader).?,
     };
+
+    return &g.render_texture;
 }
 
 pub fn update() void {
@@ -219,10 +224,13 @@ pub fn update() void {
 }
 
 pub fn cleanup() void {
+    rl.unloadRenderTexture(g.render_texture);
     rl.unloadShader(g.shader);
 }
 
 pub fn render() void {
+    rl.clearBackground(rl.Color.black);
+
     rl.beginMode3D(g.camera);
     defer rl.endMode3D();
 
