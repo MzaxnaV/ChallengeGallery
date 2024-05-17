@@ -1,3 +1,3 @@
 # ChallengeGallery
 
-Gallery of various coding challenges I do.
+Gallery of [coding train](https://thecodingtrain.com/challenges/) challenges I do.
