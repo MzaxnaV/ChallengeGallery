@@ -21,6 +21,14 @@ pub const config = .{
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 
+pub const State = struct {
+    render_texture: rl.RenderTexture2D,
+    stars: []Star,
+    camera: Camera,
+    speedMax: f32 = 0,
+    speed: f32 = 0,
+};
+
 /// 2D perspective camera
 const Camera = struct {
     /// world camera position
@@ -81,30 +89,19 @@ const Star = struct {
     }
 };
 
-//----------------------------------------------------------------------------------
-// Globals
-//----------------------------------------------------------------------------------
-
-var g: struct {
-    render_texture: rl.RenderTexture2D = undefined,
-    stars: []Star = undefined,
-    camera: Camera = undefined,
-    speedMax: f32 = 0,
-    speed: f32 = 0,
-} = .{};
-
 // ---------------------------------------------------------------------------------
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*rl.RenderTexture2D {
-    g.render_texture = rl.loadRenderTexture(width, height);
+pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*State {
+    var state: *State = &(try allocator.alloc(State, 1))[0];
+    state.render_texture = rl.loadRenderTexture(width, height);
 
-    g.stars = try allocator.alloc(Star, config.stars);
-    g.camera = .{ .fov = 120, .viewport = rl.Vector2.init(width, height) };
-    g.speedMax = config.speed_max;
+    state.stars = try allocator.alloc(Star, config.stars);
+    state.camera = .{ .fov = 120, .viewport = rl.Vector2.init(width, height) };
+    state.speedMax = config.speed_max;
 
-    for (g.stars) |*s| {
+    for (state.stars) |*s| {
         s.p.x = utils.randomFloat(-width, width);
         s.p.y = utils.randomFloat(-height, height);
         s.p.z = utils.randomFloat(1, width);
@@ -112,27 +109,29 @@ pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptim
         s.pz = s.p.z;
     }
 
-    return &g.render_texture;
+    return state;
 }
 
-pub fn update() void {
+pub fn update(state: *State) void {
     const mouse = rl.getMousePosition();
 
-    g.speed = rl.remap(mouse.x, 0, g.camera.viewport.x, 0, g.speedMax);
+    state.speed = rl.remap(mouse.x, 0, state.camera.viewport.x, 0, state.speedMax);
 
-    for (g.stars) |*s| {
-        s.update(g.speed, g.camera.viewport);
+    for (state.stars) |*s| {
+        s.update(state.speed, state.camera.viewport);
     }
 }
 
-pub fn render() void {
+pub fn render(state: *State) void {
     rl.clearBackground(rl.Color.black);
 
-    rl.drawText(rl.textFormat("Speed: %.02f", .{g.speed}), 10, 40, 20, rl.Color.gold);
+    rl.drawText(rl.textFormat("Speed: %.02f", .{state.speed}), 10, 40, 20, rl.Color.gold);
 
-    for (g.stars) |s| {
-        s.draw(g.camera);
+    for (state.stars) |s| {
+        s.draw(state.camera);
     }
 }
 
-pub fn cleanup() void {}
+pub fn cleanup(state: *State) void {
+    rl.unloadRenderTexture(state.render_texture);
+}

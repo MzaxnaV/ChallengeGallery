@@ -2,7 +2,6 @@ const std = @import("std");
 
 const rl = struct {
     usingnamespace @import("raylib");
-    usingnamespace @import("raylib-math");
 };
 
 const utils = @import("utils");
@@ -21,6 +20,17 @@ pub const config = .{
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
+
+pub const State = struct {
+    render_texture: rl.RenderTexture2D,
+    frame_time: u32 = 0,
+    snake: Snake,
+    food: Food,
+    size_x: i32,
+    size_y: i32,
+    run: bool = true,
+    set_input: bool = false,
+};
 
 const Direction = enum {
     none,
@@ -58,10 +68,10 @@ const Tail = struct {
 const Snake = struct {
     p: Vector2I = Vector2I.init(15, 15),
     dir: Direction = Direction.none,
-    tails: []Tail = undefined,
+    tails: []Tail,
     length: u32 = 0,
 
-    fn update(self: *Snake) void {
+    fn update(self: *Snake, state: *State) void {
         if (self.length > 0) {
             var i = self.length - 1;
             while (i > 0) : (i -= 1) {
@@ -78,8 +88,8 @@ const Snake = struct {
             .none => .{ .x = 0, .y = 0 },
         });
 
-        self.p.x = @mod(self.p.x, g.size_x);
-        self.p.y = @mod(self.p.y, g.size_y);
+        self.p.x = @mod(self.p.x, state.size_x);
+        self.p.y = @mod(self.p.y, state.size_y);
     }
 
     fn draw(self: @This()) void {
@@ -99,7 +109,7 @@ const Snake = struct {
 };
 
 const Food = struct {
-    p: Vector2I = Vector2I.init(0, 0),
+    p: Vector2I,
 
     fn draw(self: @This()) void {
         const pos = utils.vector2IScale(self.p, config.scl);
@@ -114,128 +124,120 @@ const Food = struct {
     }
 };
 
-//----------------------------------------------------------------------------------
-// Globals
-//----------------------------------------------------------------------------------
-
-var g: struct {
-    render_texture: rl.RenderTexture2D = undefined,
-    frame_time: u32 = 0,
-    snake: Snake = .{},
-    food: Food = .{},
-    size_x: i32 = 0,
-    size_y: i32 = 0,
-    run: bool = true,
-    set_input: bool = false,
-} = .{};
-
 // ---------------------------------------------------------------------------------
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*rl.RenderTexture2D {
-    g.render_texture = rl.loadRenderTexture(width, height);
+pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*State {
+    var state: *State = &(try allocator.alloc(State, 1))[0];
 
     const size_x = width / config.scl;
     const size_y = height / config.scl;
 
-    g.size_x = size_x;
-    g.size_y = size_y;
+    state.* = State{
+        .render_texture = rl.loadRenderTexture(width, height),
+        .snake = Snake{
+            .tails = try allocator.alloc(Tail, size_x * size_y),
+        },
+        .food = Food{
+            .p = utils.randomVector2I(0, size_x, 0, size_y),
+        },
+        .size_x = size_x,
+        .size_y = size_y,
+    };
 
-    g.snake.tails = try allocator.alloc(Tail, size_x * size_y);
-
-    for (g.snake.tails[0..]) |*tail| {
+    for (state.snake.tails[0..]) |*tail| {
         tail.i = 0;
         tail.p = .{ .x = -2, .y = -2 };
     }
 
-    g.food.p = utils.randomVector2I(0, size_x, 0, size_y);
-
-    return &g.render_texture;
+    return state;
 }
 
-pub fn update() void {
+pub fn update(state: *State) void {
     if (rl.isKeyReleased(rl.KeyboardKey.key_enter)) {
-        g.run = true;
-        for (g.snake.tails[0..g.snake.length]) |*tail| {
+        state.run = true;
+        for (state.snake.tails[0..state.snake.length]) |*tail| {
             tail.i = 0;
             tail.p = .{ .x = -2, .y = -2 };
         }
-        g.snake.length = 0;
-        g.food.p = utils.randomVector2I(0, g.size_x, 0, g.size_y);
+        state.snake.length = 0;
+        state.food.p = utils.randomVector2I(0, state.size_x, 0, state.size_y);
     }
 
-    if (!g.run) {
+    if (!state.run) {
         return;
     }
 
-    g.frame_time += 1;
+    state.frame_time += 1;
 
-    if (!g.set_input) {
+    if (!state.set_input) {
         if (rl.isKeyReleased(rl.KeyboardKey.key_w) or rl.isKeyReleased(rl.KeyboardKey.key_up)) {
-            if (g.snake.dir != Direction.down) {
-                g.snake.dir = Direction.up;
-                g.set_input = true;
+            if (state.snake.dir != Direction.down) {
+                state.snake.dir = Direction.up;
+                state.set_input = true;
             }
         } else if (rl.isKeyReleased(rl.KeyboardKey.key_s) or rl.isKeyReleased(rl.KeyboardKey.key_down)) {
-            if (g.snake.dir != Direction.up) {
-                g.snake.dir = Direction.down;
-                g.set_input = true;
+            if (state.snake.dir != Direction.up) {
+                state.snake.dir = Direction.down;
+                state.set_input = true;
             }
         } else if (rl.isKeyReleased(rl.KeyboardKey.key_a) or rl.isKeyReleased(rl.KeyboardKey.key_left)) {
-            if (g.snake.dir != Direction.right) {
-                g.snake.dir = Direction.left;
-                g.set_input = true;
+            if (state.snake.dir != Direction.right) {
+                state.snake.dir = Direction.left;
+                state.set_input = true;
             }
         } else if (rl.isKeyReleased(rl.KeyboardKey.key_d) or rl.isKeyReleased(rl.KeyboardKey.key_right)) {
-            if (g.snake.dir != Direction.left) {
-                g.snake.dir = Direction.right;
-                g.set_input = true;
+            if (state.snake.dir != Direction.left) {
+                state.snake.dir = Direction.right;
+                state.set_input = true;
             }
         }
     }
 
-    if (g.frame_time > config.delay) {
-        g.set_input = false;
-        g.frame_time = 0;
+    if (state.frame_time > config.delay) {
+        state.set_input = false;
+        state.frame_time = 0;
         // do update here
-        g.snake.update();
+        state.snake.update(state);
 
-        for (g.snake.tails[0..g.snake.length]) |tail| {
-            if (utils.isEqual(g.snake.p, tail.p)) {
-                g.snake.dir = .none;
-                g.food.p = utils.randomVector2I(0, g.size_x, 0, g.size_y);
+        for (state.snake.tails[0..state.snake.length]) |tail| {
+            if (utils.isEqual(state.snake.p, tail.p)) {
+                state.snake.dir = .none;
+                state.food.p = utils.randomVector2I(0, state.size_x, 0, state.size_y);
 
-                g.run = false;
+                state.run = false;
             }
         }
 
-        if (utils.isEqual(g.snake.p, g.food.p)) {
-            g.snake.tails[g.snake.length].p = g.food.p;
-            g.snake.tails[g.snake.length].i = g.snake.length;
-            g.snake.length += 1;
-            g.food.p = utils.randomVector2I(0, g.size_x, 0, g.size_y);
+        if (utils.isEqual(state.snake.p, state.food.p)) {
+            state.snake.tails[state.snake.length].p = state.food.p;
+            state.snake.tails[state.snake.length].i = state.snake.length;
+            state.snake.length += 1;
+            state.food.p = utils.randomVector2I(0, state.size_x, 0, state.size_y);
         }
     }
 }
 
-pub fn render() void {
+pub fn render(state: *State) void {
     rl.clearBackground(rl.Color.black);
 
-    if (!g.run) {
+    if (!state.run) {
         rl.drawText(
             "Game Over!",
-            @divTrunc(g.size_x * config.scl, 4),
-            @divTrunc(g.size_y * config.scl, 2) - 25,
+            @divTrunc(state.size_x * config.scl, 4),
+            @divTrunc(state.size_y * config.scl, 2) - 25,
             50,
             rl.Color.red,
         );
         return;
     }
 
-    g.food.draw();
+    state.food.draw();
 
-    g.snake.draw();
+    state.snake.draw();
 }
 
-pub fn cleanup() void {}
+pub fn cleanup(state: *State) void {
+    rl.unloadRenderTexture(state.render_texture);
+}

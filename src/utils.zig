@@ -3,7 +3,6 @@ const RndGen = std.rand.DefaultPrng;
 
 const rl = struct {
     usingnamespace @import("raylib");
-    // usingnamespace @import("raylib-math");
 };
 
 pub const Vector2I = struct {

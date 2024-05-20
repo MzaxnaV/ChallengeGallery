@@ -13,12 +13,14 @@ const AppType = enum {
     starfield,
     menger_sponge,
     snake,
+    purple_rain,
 
     fn getType(self: @This()) type {
         return switch (self) {
             .starfield => @import("challenges/starfield.zig"),
             .menger_sponge => @import("challenges/menger_sponge.zig"),
             .snake => @import("challenges/snake.zig"),
+            .purple_rain => @import("challenges/purple_rain.zig"),
         };
     }
 };
@@ -26,16 +28,16 @@ const AppType = enum {
 fn App(comptime tag: AppType) type {
     const app = tag.getType();
 
-    const SetupFn = *const fn (allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*rl.RenderTexture2D;
-    const EmptyFn = *const fn () void;
+    const SetupFn = *const fn (allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*app.State;
+    const CommonFn = *const fn (state: *app.State) void;
     const String = [:0]const u8;
 
     return struct {
         const setup: SetupFn = app.setup;
-        const update: EmptyFn = app.update;
+        const update: CommonFn = app.update;
         /// draws to a render texture
-        const render: EmptyFn = app.render;
-        const cleanup: EmptyFn = app.cleanup;
+        const render: CommonFn = app.render;
+        const cleanup: CommonFn = app.cleanup;
         const title: String = app.config.title;
     };
 }
@@ -57,26 +59,26 @@ pub fn main() anyerror!void {
     const viewWidth = 600;
     const viewHeight = 600;
 
-    const app = App(.snake);
+    const app = App(.purple_rain);
 
     rl.initWindow(screenWidth, screenHeight, app.title);
     defer rl.closeWindow(); // Close window and OpenGL context
 
     rl.setTargetFPS(60);
 
-    const render_texture = try app.setup(arena.allocator(), viewWidth, viewHeight);
-    defer app.cleanup();
+    const state = try app.setup(arena.allocator(), viewWidth, viewHeight);
+    defer app.cleanup(state);
 
     // Main game loop
     //--------------------------------------------------------------------------------------
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
 
-        app.update();
+        app.update(state);
 
         {
-            render_texture.begin();
-            defer render_texture.end();
-            app.render();
+            state.render_texture.begin();
+            defer state.render_texture.end();
+            app.render(state);
         }
 
         {
@@ -87,7 +89,7 @@ pub fn main() anyerror!void {
 
             rl.drawRectangleLines(5, 5, viewHeight + 10, viewHeight + 10, rl.Color.gray);
 
-            rl.drawTextureRec(render_texture.texture, .{
+            rl.drawTextureRec(state.render_texture.texture, .{
                 .x = 0,
                 .y = 0,
                 .width = viewWidth,

@@ -2,8 +2,6 @@ const std = @import("std");
 
 const rl = struct {
     usingnamespace @import("raylib");
-    usingnamespace @import("raylib-math");
-    usingnamespace @import("rlgl");
 };
 
 const utils = @import("utils");
@@ -30,6 +28,15 @@ const uniform_ivec4 = @intFromEnum(rl.ShaderUniformDataType.shader_uniform_ivec4
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
+
+pub const State = struct {
+    render_texture: rl.RenderTexture2D,
+    camera: rl.Camera3D,
+    sponge: Sponge = Sponge{},
+    shader: rl.Shader,
+    lightsCount: u32 = 0,
+    lights: [MAX_LIGHTS]Light,
+};
 
 const Sponge = struct {
     p: rl.Vector3 = rl.Vector3.init(0, 0, 0),
@@ -115,28 +122,15 @@ const Light = extern struct {
     attenuationLoc: c_int,
 };
 
-//----------------------------------------------------------------------------------
-// Globals
-//----------------------------------------------------------------------------------
-
-var g: struct {
-    render_texture: rl.RenderTexture2D = undefined,
-    camera: rl.Camera3D = undefined,
-    sponge: Sponge = undefined,
-    shader: rl.Shader = undefined,
-    lightsCount: u32 = 0,
-    lights: [MAX_LIGHTS]Light = undefined,
-} = .{};
-
 // ---------------------------------------------------------------------------------
 // local functions
 //----------------------------------------------------------------------------------
 
 /// Create a light and get shader locations
-fn createLight(lightType: LightType, position: rl.Vector3, target: rl.Vector3, color: rl.Color, shader: rl.Shader) ?Light {
-    var light: ?Light = undefined;
+fn createLight(state: *State, lightType: LightType, position: rl.Vector3, target: rl.Vector3, color: rl.Color, shader: rl.Shader) ?Light {
+    var light: ?Light = null;
 
-    if (g.lightsCount < MAX_LIGHTS) {
+    if (state.lightsCount < MAX_LIGHTS) {
         light = Light{
             .enabled = true,
             .type = lightType,
@@ -151,17 +145,17 @@ fn createLight(lightType: LightType, position: rl.Vector3, target: rl.Vector3, c
             .attenuation = 0,
 
             // NOTE: Lighting shader naming must be the provided ones
-            .enabledLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].enabled", .{g.lightsCount})),
-            .typeLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].type", .{g.lightsCount})),
-            .positionLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].position", .{g.lightsCount})),
-            .targetLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].target", .{g.lightsCount})),
-            .colorLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].color", .{g.lightsCount})),
+            .enabledLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].enabled", .{state.lightsCount})),
+            .typeLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].type", .{state.lightsCount})),
+            .positionLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].position", .{state.lightsCount})),
+            .targetLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].target", .{state.lightsCount})),
+            .colorLoc = rl.getShaderLocation(shader, rl.textFormat("lights[%i].color", .{state.lightsCount})),
             .attenuationLoc = 0,
         };
 
         updateLightValues(shader, light.?);
 
-        g.lightsCount += 1;
+        state.lightsCount += 1;
     }
 
     return light;
@@ -189,55 +183,61 @@ fn updateLightValues(shader: rl.Shader, light: Light) void {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*rl.RenderTexture2D {
-    g.render_texture = rl.loadRenderTexture(width, height);
+pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*State {
+    var state: *State = &(try allocator.alloc(State, 1))[0];
 
-    g.sponge = Sponge{};
-    try g.sponge.generate(allocator, config.depth);
-
-    g.camera = rl.Camera3D{
-        .position = rl.Vector3.init(2, 2, 3),
-        .target = rl.Vector3.init(0, 0, 0),
-        .up = rl.Vector3.init(0, 1, 0),
-        .fovy = 45,
-        .projection = rl.CameraProjection.camera_perspective,
+    state.* = State{
+        .camera = rl.Camera3D{
+            .position = rl.Vector3.init(2, 2, 3),
+            .target = rl.Vector3.init(0, 0, 0),
+            .up = rl.Vector3.init(0, 1, 0),
+            .fovy = 45,
+            .projection = rl.CameraProjection.camera_perspective,
+        },
+        .lights = undefined,
+        .shader = undefined,
+        .render_texture = rl.loadRenderTexture(width, height),
     };
 
-    g.shader = rl.loadShader("assets/shaders/lighting.vs", "assets/shaders/lighting.fs");
-    g.shader.locs[loc_vector_view] = rl.getShaderLocation(g.shader, "viewPos");
+    try state.sponge.generate(allocator, config.depth);
 
-    const ambientloc = rl.getShaderLocation(g.shader, "ambient");
-    rl.setShaderValue(g.shader, ambientloc, &rl.Vector4.init(0.1, 0.1, 0.1, 1), uniform_ivec4);
+    state.shader = rl.loadShader("assets/shaders/lighting.vs", "assets/shaders/lighting.fs");
+    state.shader.locs[loc_vector_view] = rl.getShaderLocation(state.shader, "viewPos");
 
-    g.lights = .{
-        createLight(.LIGHT_POINT, rl.Vector3.init(-2, 1, -2), rl.vector3Zero(), rl.Color.yellow, g.shader).?,
-        createLight(.LIGHT_POINT, rl.Vector3.init(2, 1, 2), rl.vector3Zero(), rl.Color.red, g.shader).?,
-        createLight(.LIGHT_POINT, rl.Vector3.init(-2, 1, 2), rl.vector3Zero(), rl.Color.green, g.shader).?,
-        createLight(.LIGHT_POINT, rl.Vector3.init(2, 1, -2), rl.vector3Zero(), rl.Color.blue, g.shader).?,
+    const ambientloc = rl.getShaderLocation(state.shader, "ambient");
+    rl.setShaderValue(state.shader, ambientloc, &rl.Vector4.init(0.1, 0.1, 0.1, 1), uniform_ivec4);
+
+    const origin = rl.Vector3.init(0, 0, 0);
+
+    state.lights = .{
+        createLight(state, .LIGHT_POINT, rl.Vector3.init(-2, 1, -2), origin, rl.Color.yellow, state.shader).?,
+        createLight(state, .LIGHT_POINT, rl.Vector3.init(2, 1, 2), origin, rl.Color.red, state.shader).?,
+        createLight(state, .LIGHT_POINT, rl.Vector3.init(-2, 1, 2), origin, rl.Color.green, state.shader).?,
+        createLight(state, .LIGHT_POINT, rl.Vector3.init(2, 1, -2), origin, rl.Color.blue, state.shader).?,
     };
 
-    return &g.render_texture;
+    return state;
 }
 
-pub fn update() void {
-    rl.updateCamera(&g.camera, rl.CameraMode.camera_orbital);
+pub fn update(state: *State) void {
+    rl.updateCamera(&state.camera, rl.CameraMode.camera_orbital);
 }
 
-pub fn cleanup() void {
-    rl.unloadRenderTexture(g.render_texture);
-    rl.unloadShader(g.shader);
-}
-
-pub fn render() void {
+pub fn render(state: *State) void {
     rl.clearBackground(rl.Color.black);
 
-    rl.beginMode3D(g.camera);
+    rl.beginMode3D(state.camera);
     defer rl.endMode3D();
 
     {
-        rl.beginShaderMode(g.shader);
+        rl.beginShaderMode(state.shader);
         defer rl.endShaderMode();
 
-        g.sponge.draw();
+        state.sponge.draw();
     }
+}
+
+pub fn cleanup(state: *State) void {
+    rl.unloadRenderTexture(state.render_texture);
+    rl.unloadShader(state.shader);
 }
