@@ -183,8 +183,8 @@ fn updateLightValues(shader: rl.Shader, light: Light) void {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*State {
-    var state: *State = &(try allocator.alloc(State, 1))[0];
+pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*State {
+    var state: *State = try allocator.create(State);
 
     state.* = State{
         .camera = rl.Camera3D{

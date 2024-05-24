@@ -128,16 +128,16 @@ const Food = struct {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*State {
-    var state: *State = &(try allocator.alloc(State, 1))[0];
+pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*State {
+    var state: *State = try allocator.create(State);
 
-    const size_x = width / config.scl;
-    const size_y = height / config.scl;
+    const size_x = @divTrunc(width, config.scl);
+    const size_y = @divTrunc(height, config.scl);
 
     state.* = State{
         .render_texture = rl.loadRenderTexture(width, height),
         .snake = Snake{
-            .tails = try allocator.alloc(Tail, size_x * size_y),
+            .tails = try allocator.alloc(Tail, @intCast(size_x * size_y)),
         },
         .food = Food{
             .p = utils.randomVector2I(0, size_x, 0, size_y),

@@ -60,19 +60,19 @@ const Drop = struct {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*State {
-    const state: *State = &(try allocator.alloc(State, 1))[0];
+pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*State {
+    const state: *State = try allocator.create(State);
 
     state.* = State{
         .render_texture = rl.loadRenderTexture(width, height),
         .rain = try allocator.alloc(Drop, config.drops),
-        .boundary = rl.Vector2.init(width, height),
+        .boundary = rl.Vector2.init(@floatFromInt(width), @floatFromInt(height)),
     };
 
     const x_speed = utils.randomFloat(-1, 1);
 
     for (state.rain) |*drop| {
-        drop.p = utils.randomVector2(0, width, 0, height);
+        drop.p = utils.randomVector2(0, @floatFromInt(width), 0, @floatFromInt(height));
         drop.nearness = utils.randomFloat(0, 20);
         drop.len = rl.remap(drop.nearness, 0, 20, 10, 20);
         drop.speed = .{ .x = x_speed, .y = rl.remap(drop.nearness, 0, 20, 1, 10) };

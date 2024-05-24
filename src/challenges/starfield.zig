@@ -93,18 +93,18 @@ const Star = struct {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, comptime width: comptime_int, comptime height: comptime_int) anyerror!*State {
-    var state: *State = &(try allocator.alloc(State, 1))[0];
+pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*State {
+    var state: *State = try allocator.create(State);
     state.render_texture = rl.loadRenderTexture(width, height);
 
     state.stars = try allocator.alloc(Star, config.stars);
-    state.camera = .{ .fov = 120, .viewport = rl.Vector2.init(width, height) };
+    state.camera = .{ .fov = 120, .viewport = rl.Vector2.init(@floatFromInt(width), @floatFromInt(height)) };
     state.speedMax = config.speed_max;
 
     for (state.stars) |*s| {
-        s.p.x = utils.randomFloat(-width, width);
-        s.p.y = utils.randomFloat(-height, height);
-        s.p.z = utils.randomFloat(1, width);
+        s.p.x = utils.randomFloat(@floatFromInt(-width), @floatFromInt(width));
+        s.p.y = utils.randomFloat(@floatFromInt(-height), @floatFromInt(height));
+        s.p.z = utils.randomFloat(1, @floatFromInt(width));
 
         s.pz = s.p.z;
     }
