@@ -1,10 +1,6 @@
 const std = @import("std");
 
-const rl = struct {
-    usingnamespace @import("raylib");
-    // usingnamespace @import("raylib-math");
-    // usingnamespace @import("rlgl");
-};
+const rl = @import("raylib");
 
 /// keep this separate from raylib to avoid ambiguous symbols
 const ray = struct {

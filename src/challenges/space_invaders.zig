@@ -1,11 +1,7 @@
 const std = @import("std");
 
-const rl = struct {
-    usingnamespace @import("raylib");
-    // usingnamespace @import("raylib-math");
-};
-
 const utils = @import("utils");
+const rl = utils.rl;
 
 //----------------------------------------------------------------------------------
 // Consts

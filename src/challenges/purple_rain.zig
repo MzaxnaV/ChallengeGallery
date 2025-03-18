@@ -1,8 +1,7 @@
 const std = @import("std");
 
-const rl = @import("raylib");
-
 const utils = @import("utils");
+const rl = utils.rl;
 
 //----------------------------------------------------------------------------------
 // Consts
