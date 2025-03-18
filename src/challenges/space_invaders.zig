@@ -2,7 +2,7 @@ const std = @import("std");
 
 const rl = struct {
     usingnamespace @import("raylib");
-    usingnamespace @import("raylib-math");
+    // usingnamespace @import("raylib-math");
 };
 
 const utils = @import("utils");
@@ -46,29 +46,29 @@ const Ship = struct {
     dP: rl.Vector2,
 
     fn update(self: *Ship, state: *State, dt: f32) void {
-        if (rl.isKeyDown(rl.KeyboardKey.key_w) or rl.isKeyDown(rl.KeyboardKey.key_up)) {
+        if (rl.isKeyDown(rl.KeyboardKey.w) or rl.isKeyDown(rl.KeyboardKey.up)) {
             self.dP.y -= 1.5;
-        } else if (rl.isKeyDown(rl.KeyboardKey.key_s) or rl.isKeyDown(rl.KeyboardKey.key_down)) {
+        } else if (rl.isKeyDown(rl.KeyboardKey.s) or rl.isKeyDown(rl.KeyboardKey.down)) {
             self.dP.y += 1.5;
         }
-        if (rl.isKeyDown(rl.KeyboardKey.key_a) or rl.isKeyDown(rl.KeyboardKey.key_left)) {
+        if (rl.isKeyDown(rl.KeyboardKey.a) or rl.isKeyDown(rl.KeyboardKey.left)) {
             self.dP.x -= 1.5;
-        } else if (rl.isKeyDown(rl.KeyboardKey.key_d) or rl.isKeyDown(rl.KeyboardKey.key_right)) {
+        } else if (rl.isKeyDown(rl.KeyboardKey.d) or rl.isKeyDown(rl.KeyboardKey.right)) {
             self.dP.x += 1.5;
         }
 
-        if (rl.isKeyReleased(rl.KeyboardKey.key_space)) {
+        if (rl.isKeyReleased(rl.KeyboardKey.space)) {
             state.bullet_group.spawn(state, .Enemy, self.p, .{ .x = 0, .y = -1 });
         }
 
         // NOTE: self.p += normalize(self.dp) * (condif.ship_speed * dt);
-        self.p = rl.vector2Add(self.p, rl.vector2Scale(rl.vector2Normalize(self.dP), config.ship_speed * dt));
+        self.p = rl.Vector2.add(self.p, rl.Vector2.scale(rl.Vector2.normalize(self.dP), config.ship_speed * dt));
 
         self.dP = rl.Vector2.init(0, 0);
     }
 
     fn draw(self: @This()) void {
-        const p = rl.vector2Subtract(self.p, rl.vector2Scale(self.size, 0.5));
+        const p = rl.Vector2.subtract(self.p, rl.Vector2.scale(self.size, 0.5));
         rl.drawRectangleV(p, self.size, rl.Color.white);
     }
 };
@@ -152,7 +152,7 @@ const BulletGroup = struct {
                 }
 
                 // NOTE: bullet.p += normalize(bullet.dp) * (config.bullet_speed * dt);
-                bullet.p = rl.vector2Add(bullet.p, rl.vector2Scale(rl.vector2Normalize(bullet.dP), config.bullet_speed * dt));
+                bullet.p = rl.Vector2.add(bullet.p, rl.Vector2.scale(rl.Vector2.normalize(bullet.dP), config.bullet_speed * dt));
 
                 if (!rl.checkCollisionPointRec(bullet.p, rl.Rectangle{
                     .x = 0,
@@ -208,7 +208,7 @@ const EnemyGroup = struct {
         }
 
         // NOTE: self.offset += normalize(self.dp) * (condif.enemy_speed * dt);
-        self.offset = rl.vector2Add(self.offset, rl.vector2Scale(rl.vector2Normalize(self.dP), config.enemy_speed * dt));
+        self.offset = rl.Vector2.add(self.offset, rl.Vector2.scale(rl.Vector2.normalize(self.dP), config.enemy_speed * dt));
 
         self.timer += dt;
         if (self.timer >= self.fire_timer) {
@@ -225,7 +225,7 @@ const EnemyGroup = struct {
 
             if (tries <= 30) {
                 // NOTE: bullet_p = (self.size * 0.5) + self.offset + self.alive[random_index].?.p;
-                const bullet_p = rl.vector2Add(rl.vector2Scale(self.size, 0.5), rl.vector2Add(self.offset, self.alive[random_index].?.p));
+                const bullet_p = rl.Vector2.add(rl.Vector2.scale(self.size, 0.5), rl.Vector2.add(self.offset, self.alive[random_index].?.p));
                 state.bullet_group.spawn(state, .Player, bullet_p, .{ .x = 0, .y = 1 });
             }
         }
@@ -234,7 +234,7 @@ const EnemyGroup = struct {
     fn draw(self: @This()) void {
         for (0..self.alive.len) |i| {
             if (self.alive[i]) |enemy| {
-                rl.drawRectangleV(rl.vector2Add(enemy.p, self.offset), self.size, rl.Color.red);
+                rl.drawRectangleV(rl.Vector2.add(enemy.p, self.offset), self.size, rl.Color.red);
             }
         }
     }
@@ -325,7 +325,7 @@ pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*St
     const state: *State = try allocator.create(State);
 
     state.* = State{
-        .render_texture = rl.loadRenderTexture(width, height),
+        .render_texture = try rl.loadRenderTexture(width, height),
         .boundary = rl.Vector2.init(@floatFromInt(width), @floatFromInt(height)),
         .ship = undefined,
         .bullets = try allocator.alloc(Bullet, config.bullets),
@@ -344,7 +344,7 @@ pub fn update(state: *State) void {
     const dt = rl.getFrameTime();
 
     if (state.status == .Dead) {
-        if (rl.isKeyReleased(rl.KeyboardKey.key_space)) {
+        if (rl.isKeyReleased(rl.KeyboardKey.space)) {
             reset(state);
         }
         return;

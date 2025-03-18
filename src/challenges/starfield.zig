@@ -1,9 +1,6 @@
 const std = @import("std");
 
-const rl = struct {
-    usingnamespace @import("raylib");
-    usingnamespace @import("raylib-math");
-};
+const rl = @import("raylib");
 
 const utils = @import("utils");
 
@@ -38,7 +35,7 @@ const Camera = struct {
     fov: f32,
 
     fn worldToScreen(self: @This(), worldP: rl.Vector3) rl.Vector2 {
-        const relative = rl.vector3Subtract(worldP, self.p);
+        const relative = rl.Vector3.subtract(worldP, self.p);
 
         const scaleFactor = self.fov / (self.fov + relative.z);
 
@@ -68,7 +65,7 @@ const Star = struct {
     }
 
     fn draw(self: @This(), camera: Camera) void {
-        const radius = rl.remap(self.p.z, 1, camera.viewport.x, 16, 0);
+        const radius = rl.math.remap(self.p.z, 1, camera.viewport.x, 16, 0);
 
         const screenP = camera.worldToScreen(self.p);
         rl.drawCircle(
@@ -95,7 +92,7 @@ const Star = struct {
 
 pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*State {
     var state: *State = try allocator.create(State);
-    state.render_texture = rl.loadRenderTexture(width, height);
+    state.render_texture = try rl.loadRenderTexture(width, height);
 
     state.stars = try allocator.alloc(Star, config.stars);
     state.camera = .{ .fov = 120, .viewport = rl.Vector2.init(@floatFromInt(width), @floatFromInt(height)) };
@@ -115,7 +112,7 @@ pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*St
 pub fn update(state: *State) void {
     const mouse = rl.getMousePosition();
 
-    state.speed = rl.remap(mouse.x, 0, state.camera.viewport.x, 0, state.speedMax);
+    state.speed = rl.math.remap(mouse.x, 0, state.camera.viewport.x, 0, state.speedMax);
 
     for (state.stars) |*s| {
         s.update(state.speed, state.camera.viewport);

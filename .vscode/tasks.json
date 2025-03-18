@@ -9,7 +9,23 @@
             "command": "zig build",
             "problemMatcher": [
                 "$zig"
-            ]
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "build Release",
+            "type": "shell",
+            "command": "zig build -Doptimize=ReleaseSafe",
+            "problemMatcher": [
+                "$zig"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         },
         {
             "label": "build-web",
@@ -17,7 +33,11 @@
             "command": "zig build -Dtarget=wasm64-emscripten --sysroot \"%EMSDK%/upstream/emscripten\"",
             "problemMatcher": [
                 "$zig"
-            ]
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
         }
     ]
 }

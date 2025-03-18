@@ -135,7 +135,7 @@ pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*St
     const size_y = @divTrunc(height, config.scl);
 
     state.* = State{
-        .render_texture = rl.loadRenderTexture(width, height),
+        .render_texture = try rl.loadRenderTexture(width, height),
         .snake = Snake{
             .tails = try allocator.alloc(Tail, @intCast(size_x * size_y)),
         },
@@ -155,7 +155,7 @@ pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*St
 }
 
 pub fn update(state: *State) void {
-    if (rl.isKeyReleased(rl.KeyboardKey.key_enter)) {
+    if (rl.isKeyReleased(rl.KeyboardKey.enter)) {
         state.run = true;
         for (state.snake.tails[0..state.snake.length]) |*tail| {
             tail.i = 0;
@@ -172,22 +172,22 @@ pub fn update(state: *State) void {
     state.frame_time += 1;
 
     if (!state.set_input) {
-        if (rl.isKeyReleased(rl.KeyboardKey.key_w) or rl.isKeyReleased(rl.KeyboardKey.key_up)) {
+        if (rl.isKeyReleased(rl.KeyboardKey.w) or rl.isKeyReleased(rl.KeyboardKey.up)) {
             if (state.snake.dir != Direction.down) {
                 state.snake.dir = Direction.up;
                 state.set_input = true;
             }
-        } else if (rl.isKeyReleased(rl.KeyboardKey.key_s) or rl.isKeyReleased(rl.KeyboardKey.key_down)) {
+        } else if (rl.isKeyReleased(rl.KeyboardKey.s) or rl.isKeyReleased(rl.KeyboardKey.down)) {
             if (state.snake.dir != Direction.up) {
                 state.snake.dir = Direction.down;
                 state.set_input = true;
             }
-        } else if (rl.isKeyReleased(rl.KeyboardKey.key_a) or rl.isKeyReleased(rl.KeyboardKey.key_left)) {
+        } else if (rl.isKeyReleased(rl.KeyboardKey.a) or rl.isKeyReleased(rl.KeyboardKey.left)) {
             if (state.snake.dir != Direction.right) {
                 state.snake.dir = Direction.left;
                 state.set_input = true;
             }
-        } else if (rl.isKeyReleased(rl.KeyboardKey.key_d) or rl.isKeyReleased(rl.KeyboardKey.key_right)) {
+        } else if (rl.isKeyReleased(rl.KeyboardKey.d) or rl.isKeyReleased(rl.KeyboardKey.right)) {
             if (state.snake.dir != Direction.left) {
                 state.snake.dir = Direction.right;
                 state.set_input = true;

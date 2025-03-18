@@ -2,8 +2,8 @@ const std = @import("std");
 
 const rl = struct {
     usingnamespace @import("raylib");
-    usingnamespace @import("raylib-math");
-    usingnamespace @import("rlgl");
+    // usingnamespace @import("raylib-math");
+    // usingnamespace @import("rlgl");
 };
 
 /// keep this separate from raylib to avoid ambiguous symbols
@@ -33,8 +33,8 @@ const AppType = enum(u32) {
     fn getList() [:0]const u8 {
         const type_info = @typeInfo(@This());
 
-        comptime var list = type_info.Enum.fields[0].name;
-        inline for (type_info.Enum.fields[1..]) |field| {
+        comptime var list = type_info.@"enum".fields[0].name;
+        inline for (type_info.@"enum".fields[1..]) |field| {
             list = list ++ ";" ++ field.name;
         }
 
@@ -138,7 +138,7 @@ pub fn main() anyerror!void {
         .padding = padding,
     };
 
-    var app = App(.space_invaders){};
+    var app = App(.starfield){};
 
     var list = List{
         .bounds = .{

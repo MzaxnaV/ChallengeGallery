@@ -1,9 +1,7 @@
 const std = @import("std");
-const RndGen = std.rand.DefaultPrng;
+const RndGen = std.Random.DefaultPrng;
 
-const rl = struct {
-    usingnamespace @import("raylib");
-};
+const rl = @import("raylib");
 
 pub const Vector2I = struct {
     x: i32,

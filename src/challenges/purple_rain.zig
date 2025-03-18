@@ -1,9 +1,6 @@
 const std = @import("std");
 
-const rl = struct {
-    usingnamespace @import("raylib");
-    usingnamespace @import("raylib-math");
-};
+const rl = @import("raylib");
 
 const utils = @import("utils");
 
@@ -34,18 +31,18 @@ const Drop = struct {
 
     fn update(self: *Drop, state: *State) void {
         self.speed.y += 0.05;
-        self.p = rl.vector2Add(self.p, self.speed);
+        self.p = rl.Vector2.add(self.p, self.speed);
 
         if (self.p.y > state.boundary.y) {
             self.p.y = utils.randomFloat(-250, 0);
-            self.speed.y = rl.remap(self.nearness, 0, 20, 4, 10);
+            self.speed.y = rl.math.remap(self.nearness, 0, 20, 4, 10);
         }
 
         self.p.x = @mod(self.p.x, state.boundary.x);
     }
 
     fn draw(self: @This()) void {
-        const thickness = rl.remap(self.nearness, 0, 20, 1, 5);
+        const thickness = rl.math.remap(self.nearness, 0, 20, 1, 5);
         rl.drawRectangle(
             @intFromFloat(self.p.x),
             @intFromFloat(self.p.y),
@@ -64,7 +61,7 @@ pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*St
     const state: *State = try allocator.create(State);
 
     state.* = State{
-        .render_texture = rl.loadRenderTexture(width, height),
+        .render_texture = try rl.loadRenderTexture(width, height),
         .rain = try allocator.alloc(Drop, config.drops),
         .boundary = rl.Vector2.init(@floatFromInt(width), @floatFromInt(height)),
     };
@@ -74,8 +71,8 @@ pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*St
     for (state.rain) |*drop| {
         drop.p = utils.randomVector2(0, @floatFromInt(width), 0, @floatFromInt(height));
         drop.nearness = utils.randomFloat(0, 20);
-        drop.len = rl.remap(drop.nearness, 0, 20, 10, 20);
-        drop.speed = .{ .x = x_speed, .y = rl.remap(drop.nearness, 0, 20, 1, 10) };
+        drop.len = rl.math.remap(drop.nearness, 0, 20, 10, 20);
+        drop.speed = .{ .x = x_speed, .y = rl.math.remap(drop.nearness, 0, 20, 1, 10) };
     }
 
     return state;
