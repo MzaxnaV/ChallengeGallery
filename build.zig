@@ -17,10 +17,7 @@ pub fn build(b: *std.Build) !void {
     const utils = b.createModule(.{
         .root_source_file = b.path("./src/utils.zig"),
         .target = target,
-        .optimize = .ReleaseSafe,
-        .imports = &.{
-            std.Build.Module.Import{ .name = "raylib", .module = raylib },
-        },
+        .optimize = optimize,
     });
 
     // //web exports are completely separate
@@ -41,6 +38,21 @@ pub fn build(b: *std.Build) !void {
     //     run_option.dependOn(&run_step.step);
     //     return;
     // }
+
+    const lib_mod = b.createModule(.{
+        .root_source_file = b.path("src/challenges/starfield.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    lib_mod.addImport("utils", utils);
+
+    const lib = b.addSharedLibrary(.{
+        .name = "starfield",
+        .root_module = lib_mod,
+    });
+
+    b.installArtifact(lib);
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),

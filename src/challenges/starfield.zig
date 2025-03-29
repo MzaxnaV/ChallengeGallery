@@ -1,24 +1,19 @@
 const std = @import("std");
 
 const utils = @import("utils");
-const rl = utils.rl;
-
 //----------------------------------------------------------------------------------
-// Consts
+// Consts & Globals
 //----------------------------------------------------------------------------------
-
-pub const config = .{
-    .title = "Startfield",
-    .stars = 100,
-    .speed_max = 50,
-};
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 
+const Vector2 = utils.Vector2;
+const Vector3 = utils.Vector3;
+const Colours = utils.Colours;
+
 pub const State = struct {
-    render_texture: rl.RenderTexture2D,
     stars: []Star,
     camera: Camera,
     speedMax: f32 = 0,
@@ -28,19 +23,19 @@ pub const State = struct {
 /// 2D perspective camera
 const Camera = struct {
     /// world camera position
-    p: rl.Vector3 = rl.Vector3.init(0, 0, 0),
+    p: Vector3 = @splat(0),
     /// virtual screen size
-    viewport: rl.Vector2,
+    viewport: Vector2,
     fov: f32,
 
-    fn worldToScreen(self: @This(), worldP: rl.Vector3) rl.Vector2 {
-        const relative = rl.Vector3.subtract(worldP, self.p);
+    fn worldToScreen(self: @This(), worldP: Vector3) Vector2 {
+        const relative = worldP - self.p;
 
-        const scaleFactor = self.fov / (self.fov + relative.z);
+        const scaleFactor = self.fov / (self.fov + relative[2]);
 
-        const result = rl.Vector2{
-            .x = self.viewport.x / 2 + relative.x * scaleFactor,
-            .y = self.viewport.y / 2 + relative.y * scaleFactor,
+        const result = Vector2{
+            self.viewport[0] / 2 + relative[0] * scaleFactor,
+            self.viewport[1] / 2 + relative[1] * scaleFactor,
         };
 
         return result;
@@ -48,40 +43,31 @@ const Camera = struct {
 };
 
 const Star = struct {
-    p: rl.Vector3 = rl.Vector3.init(0, 0, 0),
+    p: Vector3 = .{ 0, 0, 0 },
     pz: f32 = 0,
 
-    fn update(self: *Star, speed: f32, viewport: rl.Vector2) void {
-        self.pz = self.p.z;
-        self.p.z -= speed;
-        if (self.p.z <= 1) {
-            self.p.x = utils.randomFloat(-viewport.x, viewport.x);
-            self.p.y = utils.randomFloat(-viewport.y, viewport.y);
-            self.p.z = utils.randomFloat(1, viewport.x);
+    fn update(self: *Star, speed: f32, viewport: Vector2) void {
+        self.pz = self.p[2];
+        self.p[2] -= speed;
+        if (self.p[2] <= 1) {
+            self.p = .{
+                utils.randomFloat(-viewport[0], viewport[0]),
+                utils.randomFloat(-viewport[1], viewport[1]),
+                utils.randomFloat(1, viewport[0]),
+            };
 
-            self.pz = self.p.z;
+            self.pz = self.p[2];
         }
     }
 
-    fn draw(self: @This(), camera: Camera) void {
-        const radius = rl.math.remap(self.p.z, 1, camera.viewport.x, 16, 0);
+    fn draw(self: @This(), api: utils.DrawAPI, camera: Camera) void {
+        const radius = utils.remap(self.p[2], 1, camera.viewport[0], 16, 0);
 
         const screenP = camera.worldToScreen(self.p);
-        rl.drawCircle(
-            @intFromFloat(screenP.x),
-            @intFromFloat(screenP.y),
-            radius,
-            rl.Color.white,
-        );
+        api.drawCircle(screenP, radius, Colours.white);
 
-        const prevScreenP = camera.worldToScreen(.{ .x = self.p.x, .y = self.p.y, .z = self.pz });
-        rl.drawLine(
-            @intFromFloat(prevScreenP.x),
-            @intFromFloat(prevScreenP.y),
-            @intFromFloat(screenP.x),
-            @intFromFloat(screenP.y),
-            rl.Color.white,
-        );
+        const prevScreenP = camera.worldToScreen(.{ self.p[0], self.p[1], self.pz });
+        api.drawLine(prevScreenP, screenP, Colours.white);
     }
 };
 
@@ -89,45 +75,70 @@ const Star = struct {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*State {
-    var state: *State = try allocator.create(State);
-    state.render_texture = try rl.loadRenderTexture(width, height);
+export fn setup(app_data: *utils.AppData, width: i32, height: i32) callconv(.C) void {
+    const stars_len = 100;
+    const speed_max = 50;
 
-    state.stars = try allocator.alloc(Star, config.stars);
-    state.camera = .{ .fov = 120, .viewport = rl.Vector2.init(@floatFromInt(width), @floatFromInt(height)) };
-    state.speedMax = config.speed_max;
+    var fba = std.heap.FixedBufferAllocator.init(app_data.storage[0..app_data.storage_size]);
+    const allocator = fba.allocator();
+
+    const state: *State = allocator.create(State) catch |err| {
+        std.debug.print("Failed to create State: {}\n", .{err});
+        return;
+    };
+
+    state.stars = allocator.alloc(Star, stars_len) catch |err| {
+        std.debug.print("Failed to create State: {}\n", .{err});
+        return;
+    };
+    state.camera = .{
+        .fov = 120,
+        .viewport = Vector2{ @floatFromInt(width), @floatFromInt(height) },
+    };
+    state.speedMax = speed_max;
 
     for (state.stars) |*s| {
-        s.p.x = utils.randomFloat(@floatFromInt(-width), @floatFromInt(width));
-        s.p.y = utils.randomFloat(@floatFromInt(-height), @floatFromInt(height));
-        s.p.z = utils.randomFloat(1, @floatFromInt(width));
+        s.p = .{
+            utils.randomFloat(-state.camera.viewport[0], state.camera.viewport[0]),
+            utils.randomFloat(-state.camera.viewport[1], state.camera.viewport[1]),
+            utils.randomFloat(1, state.camera.viewport[0]),
+        };
 
-        s.pz = s.p.z;
+        s.pz = s.p[2];
     }
-
-    return state;
 }
 
-pub fn update(state: *State) void {
-    const mouse = rl.getMousePosition();
+export fn update(app_data: *const utils.AppData) callconv(.C) void {
+    const state: *State = @alignCast(@ptrCast(app_data.storage));
 
-    state.speed = rl.math.remap(mouse.x, 0, state.camera.viewport.x, 0, state.speedMax);
+    const mouse = app_data.input_api.getMousePosition();
+
+    state.speed = utils.remap(mouse[0], 0, state.camera.viewport[0], 0, state.speedMax);
 
     for (state.stars) |*s| {
         s.update(state.speed, state.camera.viewport);
     }
 }
 
-pub fn render(state: *State) void {
-    rl.clearBackground(rl.Color.black);
+export fn render(app_data: *const utils.AppData) callconv(.C) void {
+    const state: *State = @alignCast(@ptrCast(app_data.storage));
 
-    rl.drawText(rl.textFormat("Speed: %.02f", .{state.speed}), 10, 40, 20, rl.Color.gold);
+    const draw_api = app_data.draw_api;
+
+    draw_api.clearBackground(Colours.black);
+
+    var buff: [32]u8 = [1]u8{0} ** 32;
+
+    _ = std.fmt.bufPrint(buff[0..], "Speed: {d:.2}", .{state.speed}) catch |err| {
+        std.debug.print("Failed to format string: {}\n", .{err});
+        return;
+    };
+
+    draw_api.drawText(buff[0 .. buff.len - 1 :0], .{ 10, 40 }, 20, Colours.gold);
 
     for (state.stars) |s| {
-        s.draw(state.camera);
+        s.draw(draw_api, state.camera);
     }
-}
 
-pub fn cleanup(state: *State) void {
-    rl.unloadRenderTexture(state.render_texture);
+    draw_api.drawCircle(.{ 600, 600 }, 10, 0xff00ffff);
 }
