@@ -90,6 +90,10 @@ pub fn drawCube(p: V3, size: V3, colour: u32) void {
     rl.drawCube(.{ .x = p[0], .y = p[1], .z = p[2] }, size[0], size[0], size[0], rl.Color.fromInt(colour));
 }
 
+pub fn drawRectangle(p: V2, size: V2, colour: u32) void {
+    rl.drawRectangleV(.{ .x = p[0], .y = p[1] }, .{ .x = size[0], .y = size[1] }, rl.Color.fromInt(colour));
+}
+
 pub fn textFormat(text: []const u8, args: anytype) []const u8 {
     return rl.textFormat(text[0.. :0], args);
 }
@@ -143,6 +147,10 @@ pub fn getMousePosition() V2 {
     return .{ mouseP.x, mouseP.y };
 }
 
+pub fn isKeyReleased(key: c_int) bool {
+    return rl.isKeyReleased(@enumFromInt(key));
+}
+
 // Utility functions
 pub inline fn kiloBytes(comptime value: comptime_int) comptime_int {
     return 1024 * value;
@@ -172,9 +180,10 @@ pub fn main() anyerror!void {
             .drawLine = drawLine,
             .drawText = drawText,
             .drawCube = drawCube,
-            .loadShader = loadShader,
+            .drawRectangle = drawRectangle,
 
             // shader
+            .loadShader = loadShader,
             .unloadShader = unloadShader,
             .getShaderLocation = getShaderLocation,
             .beginShaderMode = beginShaderMode,
@@ -188,6 +197,7 @@ pub fn main() anyerror!void {
         },
         .input_api = .{
             .getMousePosition = getMousePosition,
+            .isKeyReleased = isKeyReleased,
         },
     };
 
@@ -207,15 +217,18 @@ pub fn main() anyerror!void {
     var lib_s = try std.DynLib.open("starfield.zig.dll");
     defer lib_s.close();
 
+    var lib_snake = try std.DynLib.open("snake.zig.dll");
+    defer lib_snake.close();
+
     var app_tag = utils.AppType.starfield;
     const App = utils.App();
 
     var app = App{
         .tag = app_tag,
-        .setup = lib_m.lookup(App.SetupFn, "setup").?,
-        .update = lib_m.lookup(App.CommonFn, "update").?,
-        .render = lib_m.lookup(App.CommonFn, "render").?,
-        .cleanup = lib_m.lookup(App.CleanUpFn, "cleanup").?,
+        .setup = lib_s.lookup(App.SetupFn, "setup").?,
+        .update = lib_s.lookup(App.CommonFn, "update").?,
+        .render = lib_s.lookup(App.CommonFn, "render").?,
+        .cleanup = lib_s.lookup(App.CleanUpFn, "cleanup").?,
     };
 
     var list = List{
@@ -274,8 +287,9 @@ pub fn main() anyerror!void {
             app_data.fba.reset();
 
             var lib = switch (app.tag) {
-                .menger_sponge => lib_m,
                 .starfield => lib_s,
+                .menger_sponge => lib_m,
+                .snake => lib_snake,
             };
 
             app.setup = lib.lookup(App.SetupFn, "setup").?;

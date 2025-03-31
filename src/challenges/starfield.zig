@@ -3,6 +3,15 @@ const std = @import("std");
 const utils = @import("utils");
 
 //----------------------------------------------------------------------------------
+// Config
+//----------------------------------------------------------------------------------
+
+const config = .{
+    .stars_len = 100,
+    .speed_max = 50,
+};
+
+//----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 
@@ -74,9 +83,6 @@ const Star = struct {
 //----------------------------------------------------------------------------------
 
 export fn setup(app_data: *AppData, width: i32, height: i32) callconv(.C) void {
-    const stars_len = 100;
-    const speed_max = 50;
-
     const allocator = app_data.fba.allocator();
 
     const state: *State = allocator.create(State) catch |err| {
@@ -84,7 +90,7 @@ export fn setup(app_data: *AppData, width: i32, height: i32) callconv(.C) void {
         return;
     };
 
-    state.stars = allocator.alloc(Star, stars_len) catch |err| {
+    state.stars = allocator.alloc(Star, config.stars_len) catch |err| {
         std.debug.print("Failed to create stars: {}\n", .{err});
         return;
     };
@@ -92,7 +98,7 @@ export fn setup(app_data: *AppData, width: i32, height: i32) callconv(.C) void {
         .fov = 120,
         .viewport = V2{ @floatFromInt(width), @floatFromInt(height) },
     };
-    state.speedMax = speed_max;
+    state.speedMax = config.speed_max;
 
     for (state.stars) |*s| {
         s.p = .{

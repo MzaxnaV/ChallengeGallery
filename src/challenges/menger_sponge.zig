@@ -4,6 +4,14 @@ const utils = @import("utils");
 const AppData = utils.AppData;
 
 //----------------------------------------------------------------------------------
+// Config
+//----------------------------------------------------------------------------------
+
+const config = .{
+    .depth = 2,
+};
+
+//----------------------------------------------------------------------------------
 // Raylib related structs
 //----------------------------------------------------------------------------------
 
@@ -28,10 +36,6 @@ const Light = extern struct {
     positionLoc: c_int,
     targetLoc: c_int,
     colorLoc: c_int,
-};
-
-pub const config = .{
-    .depth = 2,
 };
 
 /// Max dynamic lights supported by shader
@@ -232,7 +236,6 @@ fn updateLightValues(api: utils.DrawAPI, shader: Shader, light: Light) void {
 //----------------------------------------------------------------------------------
 
 export fn setup(app_data: *AppData, _: i32, _: i32) callconv(.C) void {
-    const depth = 2;
     const draw_api = app_data.draw_api;
 
     const allocator = app_data.fba.allocator();
@@ -254,7 +257,7 @@ export fn setup(app_data: *AppData, _: i32, _: i32) callconv(.C) void {
         .shader = undefined,
     };
 
-    state.sponge.generate(allocator, depth) catch |err| {
+    state.sponge.generate(allocator, config.depth) catch |err| {
         std.debug.print("Failed to generate sponge: {}\n", .{err});
     };
 

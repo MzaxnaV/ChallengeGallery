@@ -11,7 +11,9 @@ pub const V2I = @Vector(2, i32);
 pub const V3I = @Vector(3, i32);
 pub const V4I = @Vector(4, i32);
 
-// -
+pub inline fn V2ItoV2(v: V2I) V2 {
+    return .{ @floatFromInt(v[0]), @floatFromInt(v[1]) };
+}
 
 pub const Vector3 = extern struct {
     x: f32,
@@ -34,8 +36,8 @@ pub const Camera3D = extern struct {
 
 pub const Colours = struct {
     pub const bg = 0x202020ff; //#202020
-    pub const black = 0x000000ff; // #000000ff
     pub const gold = 0xffcb00ff; // #ffcb00ff
+    pub const black = 0x000000ff; // #000000ff
     pub const white = 0xffffffff; //#ffffffff
 };
 
@@ -47,6 +49,7 @@ pub const DrawAPI = struct {
     drawLine: *const fn (start: V2, end: V2, color: u32) void,
     drawText: *const fn (text: [:0]const u8, p: V2, fontSize: i32, color: u32) void,
     drawCube: *const fn (p: V3, size: V3, color: u32) void,
+    drawRectangle: *const fn (p: V2, size: V2, colour: u32) void,
 
     // shader
     loadShader: *const fn (vsFileName: [:0]const u8, fsFileName: [:0]const u8) ?Shader,
@@ -65,6 +68,7 @@ pub const DrawAPI = struct {
 pub const InputAPI = struct {
     // Input Functions
     getMousePosition: *const fn () V2,
+    isKeyReleased: *const fn (key: c_int) bool,
 };
 
 pub const AppData = struct {
@@ -81,7 +85,7 @@ pub const AppMode = enum {
 pub const AppType = enum(u32) {
     starfield,
     menger_sponge,
-    // snake,
+    snake,
     // purple_rain,
     // space_invaders,
 
@@ -117,8 +121,14 @@ pub inline fn remap(value: f32, inputStart: f32, inputEnd: f32, outputStart: f32
     return result;
 }
 
-pub fn randomInt(min: i32, max: i32) i32 {
-    return rnd.random().intRangeLessThan(i32, min, max);
+pub fn randomInt(comptime T: type, min: T, max: T) T {
+    comptime {
+        const typeInfo = @typeInfo(T);
+        if (typeInfo != .int) {
+            @compileError("Invalid type, only ints allowed");
+        }
+    }
+    return rnd.random().intRangeLessThan(T, min, max);
 }
 
 pub fn randomFloat(min: f32, max: f32) f32 {
@@ -126,11 +136,17 @@ pub fn randomFloat(min: f32, max: f32) f32 {
     return min + (max - min) * rnd.random().float(f32);
 }
 
-pub fn scale(v: V2, scl: f32) V2 {
-    const scaleV: V2 = @splat(scl);
-    return v * scaleV;
-}
+pub fn randomV(comptime T: type, min_a: T, max_a: T, min_b: T, max_b: T) @Vector(2, T) {
+    return switch (T) {
+        u32, i32, comptime_int => @Vector(2, T){
+            randomInt(T, min_a, max_a),
+            randomInt(T, min_b, max_b),
+        },
+        f32, comptime_float => @Vector(2, T){
+            randomFloat(min_a, max_a),
+            randomFloat(min_b, max_b),
+        },
 
-pub fn xy(v: anytype) V2 {
-    return V2{ v[0], v[1] };
+        else => undefined,
+    };
 }
