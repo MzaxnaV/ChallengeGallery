@@ -3,47 +3,87 @@ const RndGen = std.Random.DefaultPrng;
 
 var rnd = RndGen.init(0);
 
-pub const Vector3 = @Vector(3, f32);
-pub const Vector4 = @Vector(4, f32);
-pub const Vector2 = @Vector(2, f32);
+pub const V3 = @Vector(3, f32);
+pub const V4 = @Vector(4, f32);
+pub const V2 = @Vector(2, f32);
 
-pub const Vector2I = @Vector(2, i32);
-pub const Vector3I = @Vector(3, i32);
-pub const Vector4I = @Vector(4, i32);
+pub const V2I = @Vector(2, i32);
+pub const V3I = @Vector(3, i32);
+pub const V4I = @Vector(4, i32);
+
+// -
+
+pub const Vector3 = extern struct {
+    x: f32,
+    y: f32,
+    z: f32,
+};
+
+pub const Shader = extern struct {
+    id: c_uint,
+    locs: [*c]c_int,
+};
+
+pub const Camera3D = extern struct {
+    position: Vector3,
+    target: Vector3,
+    up: Vector3,
+    fovy: f32,
+    projection: c_int,
+};
 
 pub const Colours = struct {
+    pub const bg = 0x202020ff; //#202020
     pub const black = 0x000000ff; // #000000ff
     pub const gold = 0xffcb00ff; // #ffcb00ff
-    pub const white = 0xffffffff; // #ffffffff
+    pub const white = 0xffffffff; //#ffffffff
 };
 
 pub const DrawAPI = struct {
-    // Draw Functions
     clearBackground: *const fn (color: u32) void,
-    drawCircle: *const fn (p: Vector2, radius: f32, color: u32) void,
-    drawLine: *const fn (start: Vector2, end: Vector2, color: u32) void,
-    drawText: *const fn (text: [:0]const u8, p: Vector2, fontSize: i32, color: u32) void,
+
+    // shape
+    drawCircle: *const fn (p: V2, radius: f32, color: u32) void,
+    drawLine: *const fn (start: V2, end: V2, color: u32) void,
+    drawText: *const fn (text: [:0]const u8, p: V2, fontSize: i32, color: u32) void,
+    drawCube: *const fn (p: V3, size: V3, color: u32) void,
+
+    // shader
+    loadShader: *const fn (vsFileName: [:0]const u8, fsFileName: [:0]const u8) ?Shader,
+    unloadShader: *const fn (shader: Shader) void,
+    getShaderLocation: *const fn (shader: Shader, uniformName: [:0]const u8) c_int,
+    beginShaderMode: *const fn (shader: Shader) void,
+    endShaderMode: *const fn () void,
+    setShaderValue: *const fn (shader: Shader, locIndex: c_int, value: *const anyopaque, uniformType: c_int) void,
+
+    // camera
+    beginMode3D: *const fn (camera: Camera3D) void,
+    endMode3D: *const fn () void,
+    updateCamera: *const fn (camera: *Camera3D, camera_mode: c_int) void,
 };
 
 pub const InputAPI = struct {
     // Input Functions
-    getMousePosition: *const fn () Vector2,
+    getMousePosition: *const fn () V2,
 };
 
 pub const AppData = struct {
-    storage_size: usize,
-    storage: [*]u8,
+    fba: std.heap.FixedBufferAllocator,
 
     draw_api: DrawAPI,
     input_api: InputAPI,
 };
 
+pub const AppMode = enum {
+    None,
+};
+
 pub const AppType = enum(u32) {
     starfield,
     menger_sponge,
-    snake,
-    purple_rain,
-    space_invaders,
+    // snake,
+    // purple_rain,
+    // space_invaders,
 
     pub fn getList() [:0]const u8 {
         const type_info = @typeInfo(@This());
@@ -57,16 +97,18 @@ pub const AppType = enum(u32) {
     }
 };
 
-pub fn App(comptime tag: AppType) type {
+pub fn App() type {
     return struct {
         pub const SetupFn = *const fn (app_data: *AppData, width: i32, height: i32) callconv(.C) void;
         pub const CommonFn = *const fn (app_data: *const AppData) callconv(.C) void;
+        pub const CleanUpFn = *const fn (app_data: *AppData) callconv(.C) void;
 
-        tag: AppType = tag,
+        tag: AppType,
         setup: SetupFn,
         update: CommonFn,
         /// draws to a render texture
         render: CommonFn,
+        cleanup: CleanUpFn,
     };
 }
 
@@ -84,11 +126,11 @@ pub fn randomFloat(min: f32, max: f32) f32 {
     return min + (max - min) * rnd.random().float(f32);
 }
 
-pub fn scale(v: Vector2, scl: f32) Vector2 {
-    const scaleV: Vector2 = @splat(scl);
+pub fn scale(v: V2, scl: f32) V2 {
+    const scaleV: V2 = @splat(scl);
     return v * scaleV;
 }
 
-pub fn xy(v: anytype) Vector2 {
-    return Vector2{ v[0], v[1] };
+pub fn xy(v: anytype) V2 {
+    return V2{ v[0], v[1] };
 }

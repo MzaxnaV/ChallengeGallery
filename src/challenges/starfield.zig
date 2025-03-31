@@ -1,17 +1,15 @@
 const std = @import("std");
 
 const utils = @import("utils");
-//----------------------------------------------------------------------------------
-// Consts & Globals
-//----------------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 
-const Vector2 = utils.Vector2;
-const Vector3 = utils.Vector3;
+const V2 = utils.V2;
+const V3 = utils.V3;
 const Colours = utils.Colours;
+const AppData = utils.AppData;
 
 pub const State = struct {
     stars: []Star,
@@ -23,17 +21,17 @@ pub const State = struct {
 /// 2D perspective camera
 const Camera = struct {
     /// world camera position
-    p: Vector3 = @splat(0),
+    p: V3 = @splat(0),
     /// virtual screen size
-    viewport: Vector2,
+    viewport: V2,
     fov: f32,
 
-    fn worldToScreen(self: @This(), worldP: Vector3) Vector2 {
+    fn worldToScreen(self: @This(), worldP: V3) V2 {
         const relative = worldP - self.p;
 
         const scaleFactor = self.fov / (self.fov + relative[2]);
 
-        const result = Vector2{
+        const result = V2{
             self.viewport[0] / 2 + relative[0] * scaleFactor,
             self.viewport[1] / 2 + relative[1] * scaleFactor,
         };
@@ -43,10 +41,10 @@ const Camera = struct {
 };
 
 const Star = struct {
-    p: Vector3 = .{ 0, 0, 0 },
+    p: V3 = .{ 0, 0, 0 },
     pz: f32 = 0,
 
-    fn update(self: *Star, speed: f32, viewport: Vector2) void {
+    fn update(self: *Star, speed: f32, viewport: V2) void {
         self.pz = self.p[2];
         self.p[2] -= speed;
         if (self.p[2] <= 1) {
@@ -75,12 +73,11 @@ const Star = struct {
 // App api functions
 //----------------------------------------------------------------------------------
 
-export fn setup(app_data: *utils.AppData, width: i32, height: i32) callconv(.C) void {
+export fn setup(app_data: *AppData, width: i32, height: i32) callconv(.C) void {
     const stars_len = 100;
     const speed_max = 50;
 
-    var fba = std.heap.FixedBufferAllocator.init(app_data.storage[0..app_data.storage_size]);
-    const allocator = fba.allocator();
+    const allocator = app_data.fba.allocator();
 
     const state: *State = allocator.create(State) catch |err| {
         std.debug.print("Failed to create State: {}\n", .{err});
@@ -88,12 +85,12 @@ export fn setup(app_data: *utils.AppData, width: i32, height: i32) callconv(.C) 
     };
 
     state.stars = allocator.alloc(Star, stars_len) catch |err| {
-        std.debug.print("Failed to create State: {}\n", .{err});
+        std.debug.print("Failed to create stars: {}\n", .{err});
         return;
     };
     state.camera = .{
         .fov = 120,
-        .viewport = Vector2{ @floatFromInt(width), @floatFromInt(height) },
+        .viewport = V2{ @floatFromInt(width), @floatFromInt(height) },
     };
     state.speedMax = speed_max;
 
@@ -108,8 +105,8 @@ export fn setup(app_data: *utils.AppData, width: i32, height: i32) callconv(.C) 
     }
 }
 
-export fn update(app_data: *const utils.AppData) callconv(.C) void {
-    const state: *State = @alignCast(@ptrCast(app_data.storage));
+export fn update(app_data: *const AppData) callconv(.C) void {
+    const state: *State = @alignCast(@ptrCast(app_data.fba.buffer.ptr));
 
     const mouse = app_data.input_api.getMousePosition();
 
@@ -120,25 +117,32 @@ export fn update(app_data: *const utils.AppData) callconv(.C) void {
     }
 }
 
-export fn render(app_data: *const utils.AppData) callconv(.C) void {
-    const state: *State = @alignCast(@ptrCast(app_data.storage));
-
+export fn render(app_data: *const AppData) callconv(.C) void {
+    const state: *State = @alignCast(@ptrCast(app_data.fba.buffer.ptr));
     const draw_api = app_data.draw_api;
 
-    draw_api.clearBackground(Colours.black);
+    draw_api.clearBackground(Colours.bg);
 
     var buff: [32]u8 = [1]u8{0} ** 32;
 
-    _ = std.fmt.bufPrint(buff[0..], "Speed: {d:.2}", .{state.speed}) catch |err| {
+    const text = std.fmt.bufPrintZ(buff[0..], "Speed: {d:.2}", .{state.speed}) catch |err| {
         std.debug.print("Failed to format string: {}\n", .{err});
         return;
     };
 
-    draw_api.drawText(buff[0 .. buff.len - 1 :0], .{ 10, 40 }, 20, Colours.gold);
+    draw_api.drawText(text, .{ 10, 40 }, 20, Colours.gold);
 
     for (state.stars) |s| {
         s.draw(draw_api, state.camera);
     }
 
     draw_api.drawCircle(.{ 600, 600 }, 10, 0xff00ffff);
+}
+
+export fn cleanup(app_data: *AppData) callconv(.C) void {
+    const allocator = app_data.fba.allocator();
+    const state: *State = @alignCast(@ptrCast(app_data.fba.buffer.ptr));
+
+    allocator.free(state.stars);
+    allocator.destroy(state);
 }

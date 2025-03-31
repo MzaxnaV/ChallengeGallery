@@ -3,10 +3,6 @@
     .version = "0.0.1",
     .fingerprint = 0x95277e99d00a349f,
     .dependencies = .{
-        .raylib_zig = .{
-            .url = "git+https://github.com/Not-Nik/raylib-zig?ref=devel#d4fc514d54a3b37b9b3e4f4983f611c3469e8c2a",
-            .hash = "raylib_zig-5.6.0-dev-KE8REHguBQAE0xoNkra7mtEqr8cCZHk7k_03txLZB-cZ",
-        },
         .@"raylib-zig" = .{
             .url = "https://github.com/Not-Nik/raylib-zig/archive/refs/heads/zig-0.14.tar.gz",
             .hash = "raylib_zig-5.6.0-dev-KE8RELUtBQD9ynf9BONdwukHlR4Ib8k_hZZUkqUPO7uJ",

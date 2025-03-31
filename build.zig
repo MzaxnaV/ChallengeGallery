@@ -1,6 +1,33 @@
 const std = @import("std");
 const rlz = @import("raylib-zig");
 
+fn buildChallenges(b: *std.Build, utils: *std.Build.Module, optimize: std.builtin.OptimizeMode, target: std.Build.ResolvedTarget) !void {
+    var dir = try std.fs.cwd().openDir("src/challenges/", .{ .iterate = true });
+
+    var it = dir.iterate();
+    while (try it.next()) |entry| {
+        if (entry.kind == .file and entry.kind != .directory) {
+            var buff: [64]u8 = [1]u8{0} ** 64;
+            const path = try std.fmt.bufPrint(buff[0..], "src/challenges/{s}", .{entry.name});
+
+            const lib_mod = b.createModule(.{
+                .root_source_file = b.path(path),
+                .target = target,
+                .optimize = optimize,
+            });
+
+            lib_mod.addImport("utils", utils);
+
+            const lib = b.addSharedLibrary(.{
+                .name = entry.name,
+                .root_module = lib_mod,
+            });
+
+            b.installArtifact(lib);
+        }
+    }
+}
+
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -11,7 +38,7 @@ pub fn build(b: *std.Build) !void {
     });
 
     const raylib = raylib_dep.module("raylib");
-    const raygui = raylib_dep.module("raygui"); // raygui module
+    const raygui = raylib_dep.module("raygui");
     const raylib_artifact = raylib_dep.artifact("raylib");
 
     const utils = b.createModule(.{
@@ -39,20 +66,7 @@ pub fn build(b: *std.Build) !void {
     //     return;
     // }
 
-    const lib_mod = b.createModule(.{
-        .root_source_file = b.path("src/challenges/starfield.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    lib_mod.addImport("utils", utils);
-
-    const lib = b.addSharedLibrary(.{
-        .name = "starfield",
-        .root_module = lib_mod,
-    });
-
-    b.installArtifact(lib);
+    try buildChallenges(b, utils, optimize, target);
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
