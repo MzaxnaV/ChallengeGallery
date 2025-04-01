@@ -99,8 +99,8 @@ pub fn textFormat(text: []const u8, args: anytype) []const u8 {
 }
 
 // shader
-pub fn loadShader(vsFileName: [:0]const u8, fsFileName: [:0]const u8) ?utils.Shader {
-    const shader = rl.loadShader(vsFileName, fsFileName) catch |err| {
+pub fn loadShaderFromMemory(vsCode: [:0]const u8, fsCode: [:0]const u8) ?utils.Shader {
+    const shader = rl.loadShaderFromMemory(vsCode, fsCode) catch |err| {
         std.debug.print("Failed to load Shader: {}\n", .{err});
         return null;
     };
@@ -183,7 +183,7 @@ pub fn main() anyerror!void {
             .drawRectangle = drawRectangle,
 
             // shader
-            .loadShader = loadShader,
+            .loadShaderFromMemory = loadShaderFromMemory,
             .unloadShader = unloadShader,
             .getShaderLocation = getShaderLocation,
             .beginShaderMode = beginShaderMode,
@@ -219,6 +219,9 @@ pub fn main() anyerror!void {
 
     var lib_snake = try std.DynLib.open("snake.zig.dll");
     defer lib_snake.close();
+
+    var lib_p = try std.DynLib.open("purple_rain.zig.dll");
+    defer lib_p.close();
 
     var app_tag = utils.AppType.starfield;
     const App = utils.App();
@@ -290,6 +293,7 @@ pub fn main() anyerror!void {
                 .starfield => lib_s,
                 .menger_sponge => lib_m,
                 .snake => lib_snake,
+                .purple_rain => lib_p,
             };
 
             app.setup = lib.lookup(App.SetupFn, "setup").?;

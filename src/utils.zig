@@ -52,7 +52,7 @@ pub const DrawAPI = struct {
     drawRectangle: *const fn (p: V2, size: V2, colour: u32) void,
 
     // shader
-    loadShader: *const fn (vsFileName: [:0]const u8, fsFileName: [:0]const u8) ?Shader,
+    loadShaderFromMemory: *const fn (vsCode: [:0]const u8, fsCode: [:0]const u8) ?Shader,
     unloadShader: *const fn (shader: Shader) void,
     getShaderLocation: *const fn (shader: Shader, uniformName: [:0]const u8) c_int,
     beginShaderMode: *const fn (shader: Shader) void,
@@ -86,7 +86,7 @@ pub const AppType = enum(u32) {
     starfield,
     menger_sponge,
     snake,
-    // purple_rain,
+    purple_rain,
     // space_invaders,
 
     pub fn getList() [:0]const u8 {

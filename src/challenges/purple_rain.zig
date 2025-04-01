@@ -1,7 +1,10 @@
 const std = @import("std");
 
 const utils = @import("utils");
-const rl = utils.rl;
+const AppData = utils.AppData;
+const DrawAPI = utils.DrawAPI;
+
+const V2 = utils.V2;
 
 //----------------------------------------------------------------------------------
 // Consts
@@ -17,37 +20,34 @@ pub const config = .{
 //----------------------------------------------------------------------------------
 
 pub const State = struct {
-    render_texture: rl.RenderTexture2D = undefined,
     rain: []Drop,
-    boundary: rl.Vector2,
+    boundary: V2,
 };
 
 const Drop = struct {
-    p: rl.Vector2,
-    speed: rl.Vector2,
+    p: V2,
+    speed: V2,
     nearness: f32,
     len: f32,
 
     fn update(self: *Drop, state: *State) void {
-        self.speed.y += 0.05;
-        self.p = rl.Vector2.add(self.p, self.speed);
+        self.speed += .{ 0, 0.05 };
+        self.p += self.speed;
 
-        if (self.p.y > state.boundary.y) {
-            self.p.y = utils.randomFloat(-250, 0);
-            self.speed.y = rl.math.remap(self.nearness, 0, 20, 4, 10);
+        if (self.p[1] > state.boundary[1]) {
+            self.p[1] = utils.randomFloat(-250, 0);
+            self.speed[1] = utils.remap(self.nearness, 0, 20, 4, 10);
         }
 
-        self.p.x = @mod(self.p.x, state.boundary.x);
+        self.p[0] = @mod(self.p[0], state.boundary[0]);
     }
 
-    fn draw(self: @This()) void {
-        const thickness = rl.math.remap(self.nearness, 0, 20, 1, 5);
-        rl.drawRectangle(
-            @intFromFloat(self.p.x),
-            @intFromFloat(self.p.y),
-            @intFromFloat(thickness),
-            @intFromFloat(self.len),
-            rl.Color.white,
+    fn draw(self: @This(), api: DrawAPI) void {
+        const thickness = utils.remap(self.nearness, 0, 20, 1, 5);
+        api.drawRectangle(
+            self.p,
+            .{ thickness, self.len },
+            utils.Colours.white,
         );
     }
 };
@@ -56,41 +56,55 @@ const Drop = struct {
 // App api functions
 //----------------------------------------------------------------------------------
 
-pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*State {
-    const state: *State = try allocator.create(State);
+export fn setup(app_data: *AppData, width: i32, height: i32) callconv(.C) void {
+    const allocator = app_data.fba.allocator();
+
+    const state: *State = allocator.create(State) catch |err| {
+        std.debug.print("Failed to create State: {}\n", .{err});
+        return;
+    };
 
     state.* = State{
-        .render_texture = try rl.loadRenderTexture(width, height),
-        .rain = try allocator.alloc(Drop, config.drops),
-        .boundary = rl.Vector2.init(@floatFromInt(width), @floatFromInt(height)),
+        .rain = allocator.alloc(Drop, config.drops) catch |err| {
+            std.debug.print("Failed to create rain drops: {}\n", .{err});
+            return;
+        },
+        .boundary = .{ @floatFromInt(width), @floatFromInt(height) },
     };
 
     const x_speed = utils.randomFloat(-1, 1);
 
     for (state.rain) |*drop| {
-        drop.p = utils.randomVector2(0, @floatFromInt(width), 0, @floatFromInt(height));
+        drop.p = utils.randomV(f32, 0, @floatFromInt(width), 0, @floatFromInt(height));
         drop.nearness = utils.randomFloat(0, 20);
-        drop.len = rl.math.remap(drop.nearness, 0, 20, 10, 20);
-        drop.speed = .{ .x = x_speed, .y = rl.math.remap(drop.nearness, 0, 20, 1, 10) };
+        drop.len = utils.remap(drop.nearness, 0, 20, 10, 20);
+        drop.speed = .{ x_speed, utils.remap(drop.nearness, 0, 20, 1, 10) };
     }
-
-    return state;
 }
 
-pub fn update(state: *State) void {
+export fn update(app_data: *const AppData) callconv(.C) void {
+    const state: *State = @alignCast(@ptrCast(app_data.fba.buffer.ptr));
     for (state.rain) |*drop| {
         drop.update(state);
     }
 }
 
-pub fn render(state: *State) void {
-    rl.clearBackground(rl.Color.black);
+export fn render(app_data: *const AppData) callconv(.C) void {
+    const state: *State = @alignCast(@ptrCast(app_data.fba.buffer.ptr));
+    const draw_api = app_data.draw_api;
+
+    draw_api.clearBackground(utils.Colours.bg);
 
     for (state.rain) |*drop| {
-        drop.draw();
+        drop.draw(draw_api);
     }
 }
 
-pub fn cleanup(state: *State) void {
-    rl.unloadRenderTexture(state.render_texture);
+export fn cleanup(app_data: *AppData) callconv(.C) void {
+    const allocator = app_data.fba.allocator();
+    const state: *State = @alignCast(@ptrCast(app_data.fba.buffer.ptr));
+
+    allocator.free(state.rain);
+
+    allocator.destroy(state);
 }
