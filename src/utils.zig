@@ -11,6 +11,11 @@ pub const V2I = @Vector(2, i32);
 pub const V3I = @Vector(3, i32);
 pub const V4I = @Vector(4, i32);
 
+pub const Rect = struct {
+    p: V2,
+    size: V2,
+};
+
 pub inline fn V2ItoV2(v: V2I) V2 {
     return .{ @floatFromInt(v[0]), @floatFromInt(v[1]) };
 }
@@ -67,8 +72,15 @@ pub const DrawAPI = struct {
 
 pub const InputAPI = struct {
     // Input Functions
+    getFrameTime: *const fn () f32,
+
     getMousePosition: *const fn () V2,
     isKeyReleased: *const fn (key: c_int) bool,
+    isKeyDown: *const fn (key: c_int) bool,
+
+    // math
+    checkCollisionCircleRec: *const fn (center: V2, radius: f32, rec: Rect) bool,
+    checkCollisionPointRec: *const fn (point: V2, rec: Rect) bool,
 };
 
 pub const AppData = struct {
@@ -87,7 +99,7 @@ pub const AppType = enum(u32) {
     menger_sponge,
     snake,
     purple_rain,
-    // space_invaders,
+    space_invaders,
 
     pub fn getList() [:0]const u8 {
         const type_info = @typeInfo(@This());

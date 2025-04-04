@@ -1,21 +1,24 @@
 const std = @import("std");
 
 const utils = @import("utils");
-const rl = utils.rl;
+const AppData = utils.AppData;
+const DrawAPI = utils.DrawAPI;
+const InputAPI = utils.InputAPI;
+
+const V2 = utils.V2;
 
 //----------------------------------------------------------------------------------
 // Consts
 //----------------------------------------------------------------------------------
 
 pub const config = .{
-    .title = "Space Invaders",
     .enemies = 36,
     .bullets = 64,
     .ship_speed = 150, // pixel per second
     .enemy_speed = 50, // pixels per second
     .bullet_speed = 300, // pixels per second
     .bullet_poll_count = 32,
-    .dead_pos = rl.Vector2.init(500, 500),
+    .dead_pos = V2{ 500, 500 },
 };
 
 //----------------------------------------------------------------------------------
@@ -23,8 +26,7 @@ pub const config = .{
 //----------------------------------------------------------------------------------
 
 pub const State = struct {
-    render_texture: rl.RenderTexture2D = undefined,
-    boundary: rl.Vector2,
+    boundary: V2,
     ship: Ship,
     bullets: []Bullet,
     bullet_group: BulletGroup,
@@ -36,36 +38,57 @@ pub const State = struct {
     },
 };
 
-const Ship = struct {
-    p: rl.Vector2,
-    size: rl.Vector2,
-    dP: rl.Vector2,
-
-    fn update(self: *Ship, state: *State, dt: f32) void {
-        if (rl.isKeyDown(rl.KeyboardKey.w) or rl.isKeyDown(rl.KeyboardKey.up)) {
-            self.dP.y -= 1.5;
-        } else if (rl.isKeyDown(rl.KeyboardKey.s) or rl.isKeyDown(rl.KeyboardKey.down)) {
-            self.dP.y += 1.5;
-        }
-        if (rl.isKeyDown(rl.KeyboardKey.a) or rl.isKeyDown(rl.KeyboardKey.left)) {
-            self.dP.x -= 1.5;
-        } else if (rl.isKeyDown(rl.KeyboardKey.d) or rl.isKeyDown(rl.KeyboardKey.right)) {
-            self.dP.x += 1.5;
-        }
-
-        if (rl.isKeyReleased(rl.KeyboardKey.space)) {
-            state.bullet_group.spawn(state, .Enemy, self.p, .{ .x = 0, .y = -1 });
-        }
-
-        // NOTE: self.p += normalize(self.dp) * (condif.ship_speed * dt);
-        self.p = rl.Vector2.add(self.p, rl.Vector2.scale(rl.Vector2.normalize(self.dP), config.ship_speed * dt));
-
-        self.dP = rl.Vector2.init(0, 0);
+fn normalize(vec: V2) V2 {
+    var result = V2{ 0, 0 };
+    const len = @sqrt(@reduce(.Add, vec * vec));
+    if (len > 0) {
+        const i_len: V2 = @splat(1 / len);
+        result = vec * i_len;
     }
 
-    fn draw(self: @This()) void {
-        const p = rl.Vector2.subtract(self.p, rl.Vector2.scale(self.size, 0.5));
-        rl.drawRectangleV(p, self.size, rl.Color.white);
+    return result;
+}
+
+const Ship = struct {
+    p: V2,
+    size: V2,
+    dP: V2,
+
+    fn update(self: *Ship, api: InputAPI, state: *State, dt: f32) void {
+        const right = 262;
+        const left = 263;
+        const down = 264;
+        const up = 265;
+        const w = 87;
+        const a = 65;
+        const s = 83;
+        const d = 68;
+        const space = 32;
+
+        if (api.isKeyDown(w) or api.isKeyDown(up)) {
+            self.dP -= .{ 0, 1.5 };
+        } else if (api.isKeyDown(s) or api.isKeyDown(down)) {
+            self.dP += .{ 0, 1.5 };
+        }
+        if (api.isKeyDown(a) or api.isKeyDown(left)) {
+            self.dP -= .{ 1.5, 0 };
+        } else if (api.isKeyDown(d) or api.isKeyDown(right)) {
+            self.dP += .{ 1.5, 0 };
+        }
+
+        if (api.isKeyReleased(space)) {
+            state.bullet_group.spawn(state, .Enemy, self.p, .{ 0, -1 });
+        }
+
+        const time_scaled_ship_speed: V2 = @splat(config.ship_speed * dt);
+        self.p += normalize(self.dP) * time_scaled_ship_speed;
+
+        self.dP = .{ 0, 0 };
+    }
+
+    fn draw(self: @This(), api: DrawAPI) void {
+        const p = self.p - (self.size * @as(V2, @splat(0.5)));
+        api.drawRectangle(p, self.size, utils.Colours.white);
     }
 };
 
@@ -77,13 +100,13 @@ const BulletTag = enum {
 
 const Bullet = struct {
     tag: BulletTag,
-    p: rl.Vector2,
-    dP: rl.Vector2,
+    p: V2,
+    dP: V2,
 
     fn invalidate(self: *Bullet) void {
         self.tag = .Invalid;
         self.p = config.dead_pos;
-        self.dP = rl.Vector2.init(0, 0);
+        self.dP = @splat(0);
     }
 };
 
@@ -91,7 +114,7 @@ const BulletGroup = struct {
     fired: [config.bullet_poll_count]?*Bullet, // Note relace with proper polling
     r: f32,
 
-    fn spawn(self: *BulletGroup, state: *State, tag: BulletTag, pos: rl.Vector2, vel: rl.Vector2) void {
+    fn spawn(self: *BulletGroup, state: *State, tag: BulletTag, pos: V2, vel: V2) void {
         var index: u32 = 0;
         while (index < state.bullets.len) : (index += 1) {
             const bullet: *Bullet = &state.bullets[index];
@@ -111,17 +134,15 @@ const BulletGroup = struct {
         }
     }
 
-    fn update(self: *BulletGroup, state: *State, dt: f32) void {
+    fn update(self: *BulletGroup, api: InputAPI, state: *State, dt: f32) void {
         for (0..self.fired.len) |i| {
             if (self.fired[i]) |bullet| {
                 switch (bullet.tag) {
                     .Invalid => return,
                     .Player => {
-                        if (rl.checkCollisionCircleRec(bullet.p, self.r, .{
-                            .x = state.ship.p.x,
-                            .y = state.ship.p.y,
-                            .width = state.ship.size.x,
-                            .height = state.ship.size.y,
+                        if (api.checkCollisionCircleRec(bullet.p, self.r, .{
+                            .p = state.ship.p,
+                            .size = state.ship.size,
                         })) {
                             bullet.invalidate();
                             self.fired[i] = null;
@@ -131,11 +152,9 @@ const BulletGroup = struct {
                     .Enemy => {
                         for (0..state.enemy_group.alive.len) |index| {
                             if (state.enemy_group.alive[index]) |enemy| {
-                                if (rl.checkCollisionCircleRec(bullet.p, self.r, .{
-                                    .x = enemy.p.x + state.enemy_group.offset.x,
-                                    .y = enemy.p.y + state.enemy_group.offset.y,
-                                    .width = state.enemy_group.size.x,
-                                    .height = state.enemy_group.size.y,
+                                if (api.checkCollisionCircleRec(bullet.p, self.r, .{
+                                    .p = enemy.p + state.enemy_group.offset,
+                                    .size = state.enemy_group.size,
                                 })) {
                                     enemy.invalidate();
                                     state.enemy_group.alive[index] = null;
@@ -147,14 +166,12 @@ const BulletGroup = struct {
                     },
                 }
 
-                // NOTE: bullet.p += normalize(bullet.dp) * (config.bullet_speed * dt);
-                bullet.p = rl.Vector2.add(bullet.p, rl.Vector2.scale(rl.Vector2.normalize(bullet.dP), config.bullet_speed * dt));
+                const time_scaled_bullet_speed: V2 = @splat(config.bullet_speed * dt);
+                bullet.p += normalize(bullet.dP) * time_scaled_bullet_speed;
 
-                if (!rl.checkCollisionPointRec(bullet.p, rl.Rectangle{
-                    .x = 0,
-                    .y = 0,
-                    .width = state.boundary.x,
-                    .height = state.boundary.y,
+                if (!api.checkCollisionPointRec(bullet.p, .{
+                    .p = .{ 0, 0 },
+                    .size = state.boundary,
                 })) {
                     bullet.invalidate();
                     self.fired[i] = null;
@@ -163,10 +180,10 @@ const BulletGroup = struct {
         }
     }
 
-    fn draw(self: @This()) void {
+    fn draw(self: @This(), api: DrawAPI) void {
         for (0..self.fired.len) |i| {
             if (self.fired[i]) |bullet| {
-                rl.drawCircleV(bullet.p, self.r, rl.Color.gold);
+                api.drawCircle(bullet.p, self.r, utils.Colours.gold);
             }
         }
     }
@@ -174,7 +191,7 @@ const BulletGroup = struct {
 
 const Enemy = struct {
     /// position relative to group offset
-    p: rl.Vector2,
+    p: V2,
 
     fn invalidate(self: *Enemy) void {
         self.p = config.dead_pos;
@@ -183,28 +200,28 @@ const Enemy = struct {
 
 const EnemyGroup = struct {
     alive: [config.enemies]?*Enemy,
-    dP: rl.Vector2,
-    offset: rl.Vector2,
-    size: rl.Vector2,
-    wiggle_room: rl.Vector2,
+    dP: V2,
+    offset: V2,
+    size: V2,
+    wiggle_room: V2,
     fire_timer: f32 = 1,
     timer: f32 = 0,
 
     fn update(self: *EnemyGroup, state: *State, dt: f32) void {
-        if (self.offset.x > self.wiggle_room.x) {
-            self.dP.x = -2;
-        } else if (self.offset.x <= 0) {
-            self.dP.x = 2;
+        if (self.offset[0] > self.wiggle_room[0]) {
+            self.dP[0] = -2;
+        } else if (self.offset[0] <= 0) {
+            self.dP[0] = 2;
         }
 
-        if (self.offset.y > self.wiggle_room.y) {
-            self.dP.y = -1;
-        } else if (self.offset.y <= 0) {
-            self.dP.y = 1;
+        if (self.offset[1] > self.wiggle_room[1]) {
+            self.dP[1] = -1;
+        } else if (self.offset[1] <= 0) {
+            self.dP[1] = 1;
         }
 
-        // NOTE: self.offset += normalize(self.dp) * (condif.enemy_speed * dt);
-        self.offset = rl.Vector2.add(self.offset, rl.Vector2.scale(rl.Vector2.normalize(self.dP), config.enemy_speed * dt));
+        const time_scaled_enemy_speed: V2 = @splat(config.enemy_speed * dt);
+        self.offset += normalize(self.dP) * time_scaled_enemy_speed;
 
         self.timer += dt;
         if (self.timer >= self.fire_timer) {
@@ -213,24 +230,25 @@ const EnemyGroup = struct {
 
             // TODO: hacky, change active to be a freelist
             var tries: u32 = 0;
-            var random_index: u32 = @intCast(utils.randomInt(0, config.enemies));
+            var random_index: u32 = utils.randomInt(u32, 0, config.enemies);
             while ((self.alive[@intCast(random_index)] == null) and (tries <= 30)) {
-                random_index = @intCast(utils.randomInt(0, config.enemies));
+                random_index = utils.randomInt(u32, 0, config.enemies);
                 tries += 1;
             }
 
             if (tries <= 30) {
-                // NOTE: bullet_p = (self.size * 0.5) + self.offset + self.alive[random_index].?.p;
-                const bullet_p = rl.Vector2.add(rl.Vector2.scale(self.size, 0.5), rl.Vector2.add(self.offset, self.alive[random_index].?.p));
-                state.bullet_group.spawn(state, .Player, bullet_p, .{ .x = 0, .y = 1 });
+                const half: V2 = @splat(0.5);
+                const bullet_p = self.size + half + self.offset + self.alive[random_index].?.p;
+                state.bullet_group.spawn(state, .Player, bullet_p, .{ 0, 1 });
             }
         }
     }
 
-    fn draw(self: @This()) void {
+    fn draw(self: @This(), api: DrawAPI) void {
         for (0..self.alive.len) |i| {
             if (self.alive[i]) |enemy| {
-                rl.drawRectangleV(rl.Vector2.add(enemy.p, self.offset), self.size, rl.Color.red);
+                const red = 0xff0000ff;
+                api.drawRectangle(enemy.p + self.offset, self.size, red);
             }
         }
     }
@@ -241,28 +259,23 @@ const EnemyGroup = struct {
 //----------------------------------------------------------------------------------
 
 fn reset(state: *State) void {
-    const spawn_boundary = rl.Rectangle{
-        .x = 5,
-        .y = 5,
-        .width = state.boundary.x * 0.75,
-        .height = state.boundary.y * 0.5,
+    const spawn_boundary = utils.Rect{
+        .p = .{ 5, 5 },
+        .size = state.boundary * V2{ 0.75, 0.5 },
     };
 
     state.ship = .{
-        .size = rl.Vector2.init(20, 20),
-        .p = rl.Vector2.init(state.boundary.x / 2, state.boundary.y - 20),
-        .dP = rl.Vector2.init(0, 0),
+        .size = .{ 20, 20 },
+        .p = .{ state.boundary[0] / 2, state.boundary[1] - 20 },
+        .dP = .{ 0, 0 },
     };
 
     state.enemy_group = .{
         .alive = [1]?*Enemy{null} ** config.enemies,
-        .dP = .{ .x = 1, .y = 0 },
-        .offset = rl.Vector2.init(100, 0),
-        .size = rl.Vector2.init(20, 20),
-        .wiggle_room = rl.Vector2.init(
-            state.boundary.x - spawn_boundary.width,
-            state.boundary.y - spawn_boundary.height,
-        ),
+        .dP = .{ 1, 0 },
+        .offset = V2{ 100, 0 },
+        .size = V2{ 20, 20 },
+        .wiggle_room = state.boundary - spawn_boundary.size,
     };
 
     state.bullet_group = .{
@@ -286,18 +299,18 @@ fn reset(state: *State) void {
 //----------------------------------------------------------------------------------
 
 /// assumes `boundary` is inside view area, TODO: refactor this
-fn initEnemies(state: *State, boundary: rl.Rectangle, padding: i32) void {
-    const pad: f32 = @floatFromInt(padding);
+fn initEnemies(state: *State, boundary: utils.Rect, padding: i32) void {
+    const pad: V2 = @splat(@as(f32, @floatFromInt(padding)));
 
     const enemy_group = state.enemy_group;
 
-    const check = (pad + enemy_group.size.x) * (pad + enemy_group.size.y) * config.enemies >= boundary.width * boundary.height;
+    const check = @reduce(.Mul, pad + enemy_group.size) * config.enemies >= @reduce(.Mul, boundary.size);
 
     if (check) {
         std.debug.print("Count too large: {}\n", .{check});
     }
 
-    const x_count = @divTrunc(boundary.width, pad + enemy_group.size.x); // fill the width
+    const x_count = @divTrunc(boundary.size[0], pad[0] + enemy_group.size[0]); // fill the width
     const y_count = @divTrunc(config.enemies, x_count);
 
     var i: u32 = 0;
@@ -306,8 +319,7 @@ fn initEnemies(state: *State, boundary: rl.Rectangle, padding: i32) void {
         var x: f32 = 0;
         while (x < x_count) : (x += 1) {
             if (i < config.enemies) {
-                state.enemies[i].p.x = boundary.x + x * (pad + enemy_group.size.x);
-                state.enemies[i].p.y = boundary.y + y * (pad + enemy_group.size.y);
+                state.enemies[i].p = boundary.p + V2{ x, y } * (pad + enemy_group.size);
                 state.enemy_group.alive[i] = &state.enemies[i];
                 i += 1;
             } else {
@@ -317,59 +329,77 @@ fn initEnemies(state: *State, boundary: rl.Rectangle, padding: i32) void {
     }
 }
 
-pub fn setup(allocator: std.mem.Allocator, width: i32, height: i32) anyerror!*State {
-    const state: *State = try allocator.create(State);
+export fn setup(app_data: *AppData, width: i32, height: i32) callconv(.C) void {
+    const allocator = app_data.fba.allocator();
+    const state: *State = allocator.create(State) catch |err| {
+        std.debug.print("Failed to create State: {}\n", .{err});
+        return;
+    };
 
     state.* = State{
-        .render_texture = try rl.loadRenderTexture(width, height),
-        .boundary = rl.Vector2.init(@floatFromInt(width), @floatFromInt(height)),
+        .boundary = V2{ @floatFromInt(width), @floatFromInt(height) },
         .ship = undefined,
-        .bullets = try allocator.alloc(Bullet, config.bullets),
-        .enemies = try allocator.alloc(Enemy, config.enemies),
+        .bullets = allocator.alloc(Bullet, config.bullets) catch |err| {
+            std.debug.print("Failed to create bullets: {}\n", .{err});
+            return;
+        },
+        .enemies = allocator.alloc(Enemy, config.enemies) catch |err| {
+            std.debug.print("Failed to create enemies: {}\n", .{err});
+            return;
+        },
         .enemy_group = undefined,
         .bullet_group = undefined,
         .status = undefined,
     };
 
     reset(state);
-
-    return state;
 }
 
-pub fn update(state: *State) void {
-    const dt = rl.getFrameTime();
+export fn update(app_data: *const AppData) callconv(.C) void {
+    const state: *State = @alignCast(@ptrCast(app_data.fba.buffer.ptr));
+    const api = app_data.input_api;
+    const space = 32;
+
+    const dt = api.getFrameTime();
 
     if (state.status == .Dead) {
-        if (rl.isKeyReleased(rl.KeyboardKey.space)) {
+        if (api.isKeyReleased(space)) {
             reset(state);
         }
         return;
     }
 
-    state.ship.update(state, dt);
+    state.ship.update(api, state, dt);
     state.enemy_group.update(state, dt);
-    state.bullet_group.update(state, dt);
+    state.bullet_group.update(api, state, dt);
 }
 
-pub fn render(state: *State) void {
-    rl.clearBackground(rl.Color.black);
+export fn render(app_data: *const AppData) callconv(.C) void {
+    const state: *State = @alignCast(@ptrCast(app_data.fba.buffer.ptr));
+    const api = app_data.draw_api;
+
+    const red = 0xff0000ff;
+
+    api.clearBackground(utils.Colours.black);
 
     if (state.status == .Dead) {
-        rl.drawText(
+        api.drawText(
             "Game Over",
-            @intFromFloat(state.boundary.x / 2 - 150),
-            @intFromFloat(state.boundary.y / 2 - 25),
+            .{ (state.boundary[0] / 2 - 150), (state.boundary[1] / 2 - 25) },
             50,
-            rl.Color.red,
+            red,
         );
         return;
     }
 
-    state.ship.draw();
-    state.enemy_group.draw();
-    state.bullet_group.draw();
+    state.ship.draw(api);
+    state.enemy_group.draw(api);
+    state.bullet_group.draw(api);
 }
 
-pub fn cleanup(state: *State) void {
-    rl.unloadRenderTexture(state.render_texture);
+export fn cleanup(app_data: *AppData) callconv(.C) void {
+    const allocator = app_data.fba.allocator();
+    const state: *State = @alignCast(@ptrCast(app_data.fba.buffer.ptr));
+
+    allocator.destroy(state);
 }

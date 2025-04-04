@@ -151,6 +151,37 @@ pub fn isKeyReleased(key: c_int) bool {
     return rl.isKeyReleased(@enumFromInt(key));
 }
 
+pub fn isKeyDown(key: c_int) bool {
+    return rl.isKeyDown(@enumFromInt(key));
+}
+
+pub fn getFrameTime() f32 {
+    return rl.getFrameTime();
+}
+
+// Math API functions
+pub fn checkCollisionCircleRec(center: V2, radius: f32, rec: utils.Rect) bool {
+    return rl.checkCollisionCircleRec(
+        .{ .x = center[0], .y = center[1] },
+        radius,
+        .{
+            .x = rec.p[0],
+            .y = rec.p[1],
+            .width = rec.size[0],
+            .height = rec.size[1],
+        },
+    );
+}
+
+pub fn checkCollisionPointRec(point: V2, rec: utils.Rect) bool {
+    return rl.checkCollisionPointRec(.{ .x = point[0], .y = point[1] }, .{
+        .x = rec.p[0],
+        .y = rec.p[1],
+        .width = rec.size[0],
+        .height = rec.size[1],
+    });
+}
+
 // Utility functions
 pub inline fn kiloBytes(comptime value: comptime_int) comptime_int {
     return 1024 * value;
@@ -196,8 +227,14 @@ pub fn main() anyerror!void {
             .updateCamera = updateCamera,
         },
         .input_api = .{
+            .getFrameTime = getFrameTime,
             .getMousePosition = getMousePosition,
             .isKeyReleased = isKeyReleased,
+            .isKeyDown = isKeyDown,
+
+            // collision
+            .checkCollisionCircleRec = checkCollisionCircleRec,
+            .checkCollisionPointRec = checkCollisionPointRec,
         },
     };
 
@@ -222,6 +259,9 @@ pub fn main() anyerror!void {
 
     var lib_p = try std.DynLib.open("purple_rain.zig.dll");
     defer lib_p.close();
+
+    var lib_sp = try std.DynLib.open("space_invaders.zig.dll");
+    defer lib_sp.close();
 
     var app_tag = utils.AppType.starfield;
     const App = utils.App();
@@ -294,6 +334,7 @@ pub fn main() anyerror!void {
                 .menger_sponge => lib_m,
                 .snake => lib_snake,
                 .purple_rain => lib_p,
+                .space_invaders => lib_sp,
             };
 
             app.setup = lib.lookup(App.SetupFn, "setup").?;

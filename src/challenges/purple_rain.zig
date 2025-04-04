@@ -44,11 +44,7 @@ const Drop = struct {
 
     fn draw(self: @This(), api: DrawAPI) void {
         const thickness = utils.remap(self.nearness, 0, 20, 1, 5);
-        api.drawRectangle(
-            self.p,
-            .{ thickness, self.len },
-            utils.Colours.white,
-        );
+        api.drawRectangle(self.p, .{ thickness, self.len }, utils.Colours.white);
     }
 };
 
