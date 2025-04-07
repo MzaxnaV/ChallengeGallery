@@ -18,8 +18,10 @@ fn buildChallenges(b: *std.Build, utils: *std.Build.Module, optimize: std.builti
 
             lib_mod.addImport("utils", utils);
 
+            const name_without_extensions = entry.name[0 .. entry.name.len - 4];
+
             const lib = b.addSharedLibrary(.{
-                .name = entry.name,
+                .name = name_without_extensions,
                 .root_module = lib_mod,
             });
 

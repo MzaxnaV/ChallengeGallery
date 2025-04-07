@@ -67,7 +67,7 @@ const Star = struct {
         }
     }
 
-    fn draw(self: @This(), api: utils.DrawAPI, camera: Camera) void {
+    fn draw(self: @This(), api: utils.RenderAPI, camera: Camera) void {
         const radius = utils.remap(self.p[2], 1, camera.viewport[0], 16, 0);
 
         const screenP = camera.worldToScreen(self.p);

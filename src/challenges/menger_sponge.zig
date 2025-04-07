@@ -87,7 +87,7 @@ const Sponge = struct {
     depth: u32 = 0,
     subdivBoxes: ?[]Sponge = null,
 
-    fn draw(self: @This(), api: utils.DrawAPI) void {
+    fn draw(self: @This(), api: utils.RenderAPI) void {
         if (self.depth == 0) {
             api.drawCube(self.p, .{ self.size, self.size, self.size }, Colours.white);
         }
@@ -153,7 +153,7 @@ const Sponge = struct {
 //----------------------------------------------------------------------------------
 
 /// Create a light and get shader locations
-fn createLight(api: utils.DrawAPI, state: *State, lightType: LightType, position: V3, target: V3, colour: V4, shader: Shader) ?Light {
+fn createLight(api: utils.RenderAPI, state: *State, lightType: LightType, position: V3, target: V3, colour: V4, shader: Shader) ?Light {
     var light: ?Light = null;
 
     if (state.lightsCount < MAX_LIGHTS) {
@@ -215,7 +215,7 @@ fn createLight(api: utils.DrawAPI, state: *State, lightType: LightType, position
 
 /// Send light properties to shader.
 /// NOTE: Light shader locations should be available
-fn updateLightValues(api: utils.DrawAPI, shader: Shader, light: Light) void {
+fn updateLightValues(api: utils.RenderAPI, shader: Shader, light: Light) void {
 
     // Send to shader light enabled state and type
     api.setShaderValue(shader, light.enabledLoc, &light.enabled, uniform_int);

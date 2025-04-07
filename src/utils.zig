@@ -46,7 +46,7 @@ pub const Colours = struct {
     pub const white = 0xffffffff; //#ffffffff
 };
 
-pub const DrawAPI = struct {
+pub const RenderAPI = struct {
     clearBackground: *const fn (color: u32) void,
 
     // shape
@@ -70,7 +70,7 @@ pub const DrawAPI = struct {
     updateCamera: *const fn (camera: *Camera3D, camera_mode: c_int) void,
 };
 
-pub const InputAPI = struct {
+pub const UpdateAPI = struct {
     // Input Functions
     getFrameTime: *const fn () f32,
 
@@ -86,8 +86,8 @@ pub const InputAPI = struct {
 pub const AppData = struct {
     fba: std.heap.FixedBufferAllocator,
 
-    draw_api: DrawAPI,
-    input_api: InputAPI,
+    draw_api: RenderAPI,
+    input_api: UpdateAPI,
 };
 
 pub const AppMode = enum {

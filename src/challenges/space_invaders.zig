@@ -2,8 +2,8 @@ const std = @import("std");
 
 const utils = @import("utils");
 const AppData = utils.AppData;
-const DrawAPI = utils.DrawAPI;
-const InputAPI = utils.InputAPI;
+const RenderAPI = utils.RenderAPI;
+const UpdateAPI = utils.UpdateAPI;
 
 const V2 = utils.V2;
 
@@ -54,7 +54,7 @@ const Ship = struct {
     size: V2,
     dP: V2,
 
-    fn update(self: *Ship, api: InputAPI, state: *State, dt: f32) void {
+    fn update(self: *Ship, api: UpdateAPI, state: *State, dt: f32) void {
         const right = 262;
         const left = 263;
         const down = 264;
@@ -86,7 +86,7 @@ const Ship = struct {
         self.dP = .{ 0, 0 };
     }
 
-    fn draw(self: @This(), api: DrawAPI) void {
+    fn draw(self: @This(), api: RenderAPI) void {
         const p = self.p - (self.size * @as(V2, @splat(0.5)));
         api.drawRectangle(p, self.size, utils.Colours.white);
     }
@@ -134,7 +134,7 @@ const BulletGroup = struct {
         }
     }
 
-    fn update(self: *BulletGroup, api: InputAPI, state: *State, dt: f32) void {
+    fn update(self: *BulletGroup, api: UpdateAPI, state: *State, dt: f32) void {
         for (0..self.fired.len) |i| {
             if (self.fired[i]) |bullet| {
                 switch (bullet.tag) {
@@ -180,7 +180,7 @@ const BulletGroup = struct {
         }
     }
 
-    fn draw(self: @This(), api: DrawAPI) void {
+    fn draw(self: @This(), api: RenderAPI) void {
         for (0..self.fired.len) |i| {
             if (self.fired[i]) |bullet| {
                 api.drawCircle(bullet.p, self.r, utils.Colours.gold);
@@ -230,13 +230,14 @@ const EnemyGroup = struct {
 
             // TODO: hacky, change active to be a freelist
             var tries: u32 = 0;
+            const max_tries = 30;
             var random_index: u32 = utils.randomInt(u32, 0, config.enemies);
-            while ((self.alive[@intCast(random_index)] == null) and (tries <= 30)) {
+            while ((self.alive[@intCast(random_index)] == null) and (tries <= max_tries)) {
                 random_index = utils.randomInt(u32, 0, config.enemies);
                 tries += 1;
             }
 
-            if (tries <= 30) {
+            if (tries <= max_tries) {
                 const half: V2 = @splat(0.5);
                 const bullet_p = self.size + half + self.offset + self.alive[random_index].?.p;
                 state.bullet_group.spawn(state, .Player, bullet_p, .{ 0, 1 });
@@ -244,7 +245,7 @@ const EnemyGroup = struct {
         }
     }
 
-    fn draw(self: @This(), api: DrawAPI) void {
+    fn draw(self: @This(), api: RenderAPI) void {
         for (0..self.alive.len) |i| {
             if (self.alive[i]) |enemy| {
                 const red = 0xff0000ff;

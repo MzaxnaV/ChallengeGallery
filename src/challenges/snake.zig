@@ -2,7 +2,7 @@ const std = @import("std");
 
 const utils = @import("utils");
 const AppData = utils.AppData;
-const DrawAPI = utils.DrawAPI;
+const RenderAPI = utils.RenderAPI;
 
 const V2 = utils.V2;
 const V2I = utils.V2I;
@@ -46,7 +46,7 @@ const Tail = struct {
     p: V2I,
     i: u32 = 0,
 
-    fn draw(self: @This(), api: DrawAPI) void {
+    fn draw(self: @This(), api: RenderAPI) void {
         var buff: [32]u8 = [1]u8{0} ** 32;
 
         const pos: V2 = V2ItoV2(self.p * scale_v);
@@ -95,7 +95,7 @@ const Snake = struct {
         self.p = @mod(self.p, state.size);
     }
 
-    fn draw(self: @This(), api: DrawAPI) void {
+    fn draw(self: @This(), api: RenderAPI) void {
         const pos: V2 = V2ItoV2(self.p * scale_v);
 
         api.drawRectangle(
@@ -113,7 +113,7 @@ const Snake = struct {
 const Food = struct {
     p: V2I,
 
-    fn draw(self: @This(), api: DrawAPI) void {
+    fn draw(self: @This(), api: RenderAPI) void {
         const pos: V2 = V2ItoV2(self.p * scale_v);
 
         api.drawRectangle(

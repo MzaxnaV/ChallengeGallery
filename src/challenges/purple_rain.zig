@@ -2,7 +2,7 @@ const std = @import("std");
 
 const utils = @import("utils");
 const AppData = utils.AppData;
-const DrawAPI = utils.DrawAPI;
+const RenderAPI = utils.RenderAPI;
 
 const V2 = utils.V2;
 
@@ -42,7 +42,7 @@ const Drop = struct {
         self.p[0] = @mod(self.p[0], state.boundary[0]);
     }
 
-    fn draw(self: @This(), api: DrawAPI) void {
+    fn draw(self: @This(), api: RenderAPI) void {
         const thickness = utils.remap(self.nearness, 0, 20, 1, 5);
         api.drawRectangle(self.p, .{ thickness, self.len }, utils.Colours.white);
     }
