@@ -11,7 +11,7 @@ const ray = struct {
 const utils = @import("utils");
 const V2 = utils.V2;
 const V3 = utils.V3;
-const AppType = utils.AppType;
+const AppType = @import("challenges").AppType;
 
 const View = struct {
     bounds: rl.Rectangle,
@@ -248,26 +248,24 @@ pub fn main() anyerror!void {
         .padding = padding,
     };
 
-    var lib_m = try std.DynLib.open("menger_sponge.zig.dll");
+    var lib_m = try std.DynLib.open("menger_sponge.dll");
     defer lib_m.close();
 
-    var lib_s = try std.DynLib.open("starfield.zig.dll");
+    var lib_s = try std.DynLib.open("starfield.dll");
     defer lib_s.close();
 
-    var lib_snake = try std.DynLib.open("snake.zig.dll");
+    var lib_snake = try std.DynLib.open("snake.dll");
     defer lib_snake.close();
 
-    var lib_p = try std.DynLib.open("purple_rain.zig.dll");
+    var lib_p = try std.DynLib.open("purple_rain.dll");
     defer lib_p.close();
 
-    var lib_sp = try std.DynLib.open("space_invaders.zig.dll");
+    var lib_sp = try std.DynLib.open("space_invaders.dll");
     defer lib_sp.close();
 
-    var app_tag = utils.AppType.starfield;
-    const App = utils.App();
+    const App = utils.App(AppType);
 
     var app = App{
-        .tag = app_tag,
         .setup = lib_s.lookup(App.SetupFn, "setup").?,
         .update = lib_s.lookup(App.CommonFn, "update").?,
         .render = lib_s.lookup(App.CommonFn, "render").?,
@@ -323,8 +321,8 @@ pub fn main() anyerror!void {
             rl.drawFPS(20, 20);
         }
 
-        if (app.tag != app_tag) {
-            app_tag = app.tag;
+        if (app.tag != app.prev_tag) {
+            app.prev_tag = app.tag;
 
             app.cleanup(&app_data);
             app_data.fba.reset();

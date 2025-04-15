@@ -94,32 +94,14 @@ pub const AppMode = enum {
     None,
 };
 
-pub const AppType = enum(u32) {
-    starfield,
-    menger_sponge,
-    snake,
-    purple_rain,
-    space_invaders,
-
-    pub fn getList() [:0]const u8 {
-        const type_info = @typeInfo(@This());
-
-        comptime var list = type_info.@"enum".fields[0].name;
-        inline for (type_info.@"enum".fields[1..]) |field| {
-            list = list ++ ";" ++ field.name;
-        }
-
-        return list;
-    }
-};
-
-pub fn App() type {
+pub fn App(comptime TagType: type) type {
     return struct {
         pub const SetupFn = *const fn (app_data: *AppData, width: i32, height: i32) callconv(.C) void;
         pub const CommonFn = *const fn (app_data: *const AppData) callconv(.C) void;
         pub const CleanUpFn = *const fn (app_data: *AppData) callconv(.C) void;
 
-        tag: AppType,
+        tag: TagType = @enumFromInt(0),
+        prev_tag: TagType = @enumFromInt(0),
         setup: SetupFn,
         update: CommonFn,
         /// draws to a render texture

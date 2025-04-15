@@ -1,14 +1,24 @@
 const std = @import("std");
 const rlz = @import("raylib-zig");
 
-fn buildChallenges(b: *std.Build, utils: *std.Build.Module, optimize: std.builtin.OptimizeMode, target: std.Build.ResolvedTarget) !void {
+fn buildChallenges(b: *std.Build, utils_mod: *std.Build.Module, optimize: std.builtin.OptimizeMode, target: std.Build.ResolvedTarget) !*std.Build.Module {
+    var content = std.ArrayList(u8).init(b.allocator);
+    var writer = content.writer();
+
+    try writer.writeAll(
+        \\pub const AppType = enum(u32) {
+        \\
+    );
+
     var dir = try std.fs.cwd().openDir("src/challenges/", .{ .iterate = true });
 
     var it = dir.iterate();
     while (try it.next()) |entry| {
         if (entry.kind == .file and entry.kind != .directory) {
-            var buff: [64]u8 = [1]u8{0} ** 64;
-            const path = try std.fmt.bufPrint(buff[0..], "src/challenges/{s}", .{entry.name});
+            const name_without_ext = entry.name[0 .. entry.name.len - 4];
+
+            const path = try std.fmt.allocPrint(b.allocator, "src/challenges/{s}", .{entry.name});
+            defer b.allocator.free(path);
 
             const lib_mod = b.createModule(.{
                 .root_source_file = b.path(path),
@@ -16,18 +26,41 @@ fn buildChallenges(b: *std.Build, utils: *std.Build.Module, optimize: std.builti
                 .optimize = optimize,
             });
 
-            lib_mod.addImport("utils", utils);
-
-            const name_without_extensions = entry.name[0 .. entry.name.len - 4];
+            lib_mod.addImport("utils", utils_mod);
 
             const lib = b.addSharedLibrary(.{
-                .name = name_without_extensions,
+                .name = name_without_ext,
                 .root_module = lib_mod,
             });
+
+            try writer.print("\t{s},\n", .{name_without_ext});
 
             b.installArtifact(lib);
         }
     }
+
+    try writer.writeAll(
+        \\
+        \\    pub fn getList() [:0]const u8 {
+        \\        const type_info = @typeInfo(@This());
+        \\
+        \\        comptime var list = type_info.@"enum".fields[0].name;
+        \\        inline for (type_info.@"enum".fields[1..]) |field| {
+        \\            list = list ++ ";" ++ field.name;
+        \\        }
+        \\
+        \\        return list;
+        \\    }
+        \\};
+    );
+
+    const module = b.createModule(.{
+        .root_source_file = b.addWriteFiles().add("challenges.zig", content.items),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    return module;
 }
 
 pub fn build(b: *std.Build) !void {
@@ -43,11 +76,13 @@ pub fn build(b: *std.Build) !void {
     const raygui = raylib_dep.module("raygui");
     const raylib_artifact = raylib_dep.artifact("raylib");
 
-    const utils = b.createModule(.{
+    const utils_mod = b.createModule(.{
         .root_source_file = b.path("./src/utils.zig"),
         .target = target,
         .optimize = optimize,
     });
+
+    const challenges_mod = try buildChallenges(b, utils_mod, optimize, target);
 
     // //web exports are completely separate
     // if (target.query.os_tag == .emscripten) {
@@ -68,13 +103,16 @@ pub fn build(b: *std.Build) !void {
     //     return;
     // }
 
-    try buildChallenges(b, utils, optimize, target);
-
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
+
+    exe_mod.addImport("raylib", raylib);
+    exe_mod.addImport("raygui", raygui);
+    exe_mod.addImport("utils", utils_mod);
+    exe_mod.addImport("challenges", challenges_mod);
 
     const exe = b.addExecutable(.{
         .name = "ChallengeGallery",
@@ -82,9 +120,6 @@ pub fn build(b: *std.Build) !void {
     });
 
     exe.linkLibrary(raylib_artifact);
-    exe.root_module.addImport("raylib", raylib);
-    exe.root_module.addImport("raygui", raygui);
-    exe.root_module.addImport("utils", utils);
 
     const run_cmd = b.addRunArtifact(exe);
     const run_step = b.step("run", "Run ChallengeGallery");
