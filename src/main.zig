@@ -9,9 +9,13 @@ const ray = struct {
 };
 
 const utils = @import("utils");
+
+const AppType = @import("challenges").AppType;
+const App = utils.App(AppType);
+const AppData = utils.AppData;
+
 const V2 = utils.V2;
 const V3 = utils.V3;
-const AppType = @import("challenges").AppType;
 
 const View = struct {
     bounds: rl.Rectangle,
@@ -199,9 +203,11 @@ pub fn main() anyerror!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const memoryBlock = try arena.allocator().alignedAlloc(u8, 16, size);
+    const allocator = arena.allocator();
 
-    var app_data = utils.AppData{
+    const memoryBlock = try allocator.alignedAlloc(u8, 16, size);
+
+    var app_data = AppData{
         .fba = std.heap.FixedBufferAllocator.init(@as([*]u8, @ptrCast(memoryBlock))[0..size]),
 
         .draw_api = .{
@@ -248,28 +254,28 @@ pub fn main() anyerror!void {
         .padding = padding,
     };
 
-    var lib_m = try std.DynLib.open("menger_sponge.dll");
-    defer lib_m.close();
+    // LIBRARY LOADING
+    var libs_map = std.AutoHashMap(AppType, std.DynLib).init(allocator);
+    const type_info = @typeInfo(AppType);
 
-    var lib_s = try std.DynLib.open("starfield.dll");
-    defer lib_s.close();
+    inline for (type_info.@"enum".fields) |enum_field| {
+        const lib = try std.DynLib.open(enum_field.name ++ ".dll");
+        try libs_map.put(@enumFromInt(enum_field.value), lib);
+    }
 
-    var lib_snake = try std.DynLib.open("snake.dll");
-    defer lib_snake.close();
+    defer {
+        inline for (type_info.@"enum".fields) |enum_field| {
+            var lib = libs_map.get(@enumFromInt(enum_field.value)).?;
+            lib.close();
+        }
+    }
 
-    var lib_p = try std.DynLib.open("purple_rain.dll");
-    defer lib_p.close();
-
-    var lib_sp = try std.DynLib.open("space_invaders.dll");
-    defer lib_sp.close();
-
-    const App = utils.App(AppType);
-
+    var starfield = libs_map.get(.menger_sponge).?;
     var app = App{
-        .setup = lib_s.lookup(App.SetupFn, "setup").?,
-        .update = lib_s.lookup(App.CommonFn, "update").?,
-        .render = lib_s.lookup(App.CommonFn, "render").?,
-        .cleanup = lib_s.lookup(App.CleanUpFn, "cleanup").?,
+        .setup = starfield.lookup(App.SetupFn, "setup").?,
+        .update = starfield.lookup(App.CommonFn, "update").?,
+        .render = starfield.lookup(App.CommonFn, "render").?,
+        .cleanup = starfield.lookup(App.CleanUpFn, "cleanup").?,
     };
 
     var list = List{
@@ -327,13 +333,7 @@ pub fn main() anyerror!void {
             app.cleanup(&app_data);
             app_data.fba.reset();
 
-            var lib = switch (app.tag) {
-                .starfield => lib_s,
-                .menger_sponge => lib_m,
-                .snake => lib_snake,
-                .purple_rain => lib_p,
-                .space_invaders => lib_sp,
-            };
+            var lib = libs_map.get(app.tag).?;
 
             app.setup = lib.lookup(App.SetupFn, "setup").?;
             app.update = lib.lookup(App.CommonFn, "update").?;
