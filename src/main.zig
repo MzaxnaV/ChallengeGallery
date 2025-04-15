@@ -194,6 +194,36 @@ pub inline fn megaBytes(comptime value: comptime_int) comptime_int {
     return 1024 * kiloBytes(value);
 }
 
+const LibraryManager = struct {
+    map: std.AutoHashMap(AppType, std.DynLib),
+
+    pub fn init(allocator: std.mem.Allocator) !LibraryManager {
+        var result = LibraryManager{
+            .map = std.AutoHashMap(AppType, std.DynLib).init(allocator),
+        };
+
+        inline for (@typeInfo(AppType).@"enum".fields) |enum_field| {
+            const lib = try std.DynLib.open(enum_field.name ++ ".dll");
+            try result.map.put(@enumFromInt(enum_field.value), lib);
+        }
+
+        return result;
+    }
+
+    pub fn get(self: LibraryManager, key: AppType) ?std.DynLib {
+        return self.map.get(key);
+    }
+
+    pub fn deinit(self: *LibraryManager) void {
+        inline for (@typeInfo(AppType).@"enum".fields) |enum_field| {
+            var lib = self.map.get(@enumFromInt(enum_field.value)).?;
+            lib.close();
+        }
+
+        self.map.deinit();
+    }
+};
+
 pub fn main() anyerror!void {
     // Initialization
     //--------------------------------------------------------------------------------------
@@ -254,23 +284,10 @@ pub fn main() anyerror!void {
         .padding = padding,
     };
 
-    // LIBRARY LOADING
-    var libs_map = std.AutoHashMap(AppType, std.DynLib).init(allocator);
-    const type_info = @typeInfo(AppType);
+    var libs_map = try LibraryManager.init(allocator);
+    defer libs_map.deinit();
 
-    inline for (type_info.@"enum".fields) |enum_field| {
-        const lib = try std.DynLib.open(enum_field.name ++ ".dll");
-        try libs_map.put(@enumFromInt(enum_field.value), lib);
-    }
-
-    defer {
-        inline for (type_info.@"enum".fields) |enum_field| {
-            var lib = libs_map.get(@enumFromInt(enum_field.value)).?;
-            lib.close();
-        }
-    }
-
-    var starfield = libs_map.get(.menger_sponge).?;
+    var starfield = libs_map.get(.starfield).?;
     var app = App{
         .setup = starfield.lookup(App.SetupFn, "setup").?,
         .update = starfield.lookup(App.CommonFn, "update").?,
