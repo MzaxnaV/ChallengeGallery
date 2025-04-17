@@ -15,7 +15,7 @@ fn buildChallenges(b: *std.Build, utils_mod: *std.Build.Module, optimize: std.bu
     var it = dir.iterate();
     while (try it.next()) |entry| {
         if (entry.kind == .file and entry.kind != .directory) {
-            const name_without_ext = entry.name[0 .. entry.name.len - 4];
+            const name_without_ext = entry.name[4 .. entry.name.len - 4];
 
             const path = try std.fmt.allocPrint(b.allocator, "src/challenges/{s}", .{entry.name});
             defer b.allocator.free(path);
